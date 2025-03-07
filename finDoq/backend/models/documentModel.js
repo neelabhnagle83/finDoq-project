@@ -7,6 +7,8 @@ db.run(`
         user_id INTEGER,
         file_name TEXT,
         content TEXT,
+        size INTEGER,
+        uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(user_id) REFERENCES users(id)
     )
 `, (err) => {
@@ -15,10 +17,10 @@ db.run(`
 });
 
 // Function to insert a new document
-function addDocument(userId, fileName, content, callback) {
+function addDocument(userId, fileName, content, fileSize, callback) {
     db.run(
-        `INSERT INTO documents (user_id, file_name, content) VALUES (?, ?, ?)`,
-        [userId, fileName, content],
+        `INSERT INTO documents (user_id, file_name, content, size, uploaded_at) VALUES (?, ?, ?, ?, DATETIME('now'))`,
+        [userId, fileName, content, fileSize],
         function (err) {
             if (err) {
                 return callback(err);

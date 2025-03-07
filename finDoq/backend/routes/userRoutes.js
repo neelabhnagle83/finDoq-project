@@ -68,7 +68,20 @@ router.post("/upload", authenticateToken, upload.single("file"), (req, res) => {
                 "INSERT INTO documents (user_id, file_name, content) VALUES (?, ?, ?)",
                 [userId, fileName, filePath],
                 (err) => {
-                    if (err) return res.status(500).json({ error: "Database error" });
+                    if (err) {
+                        // If the file already exists, continue to scan
+                        if (err.code === 'SQLITE_CONSTRAINT') {
+                            return res.json({
+                                message: "File already uploaded, proceeding to scan",
+                                file: {
+                                    fileName,
+                                    fileSize,
+                                    uploadDate,
+                                },
+                            });
+                        }
+                        return res.status(500).json({ error: "Database error" });
+                    }
                     // Send the file metadata back to the frontend
                     res.json({
                         message: "File uploaded successfully",
@@ -103,6 +116,25 @@ router.post("/deduct-credit", authenticateToken, (req, res) => {
             }
             res.json({ success: true, message: "Credit deducted successfully" });
         });
+    });
+});
+
+router.get("/credits", authenticateToken, (req, res) => {
+    const username = req.user.username;
+    console.log("Fetching credits for user:", username); // Debug log
+
+    db.get("SELECT credits FROM users WHERE username = ?", [username], (err, user) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ error: "Database error while fetching credits" });
+        }
+        if (!user) {
+            console.error("User not found:", username);
+            return res.status(404).json({ error: "User not found" });
+        }
+        
+        console.log("Credits found:", user.credits); // Debug log
+        res.json({ credits: user.credits });
     });
 });
 

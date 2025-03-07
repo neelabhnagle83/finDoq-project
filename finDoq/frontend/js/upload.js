@@ -1,6 +1,7 @@
-export function uploadFile(file, onSuccess) {
+export function uploadFile(file) {
     const token = localStorage.getItem("token");
     const userId = localStorage.getItem("userId");
+    const username = localStorage.getItem("username");
 
     if (!file) {
         alert("⚠️ No file selected! Please choose a file before uploading.");
@@ -14,11 +15,8 @@ export function uploadFile(file, onSuccess) {
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("userId", userId);
 
-    console.log("Uploading file...");
-
-    fetch("http://localhost:3000/documents/upload", {
+    fetch("http://localhost:3000/upload", {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${token}`,
@@ -27,17 +25,24 @@ export function uploadFile(file, onSuccess) {
     })
     .then(async (response) => {
         const data = await response.json();
-        console.log("Server Response:", data);
-
         if (!response.ok) {
             throw new Error(data.error || "File upload failed.");
         }
 
-        alert("File uploaded successfully");
-        if (onSuccess) onSuccess();
+        const scanUrl = `http://localhost:3000/scan/${data.documentId}`;
+        await fetch(scanUrl, {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ username: username })
+        });
+
+        alert("✅ File uploaded and scanned successfully!");
     })
     .catch((error) => {
-        console.error("Error uploading file:", error);
-        alert("❌ File upload failed: " + error.message);
+        console.error("Error:", error);
+        alert("❌ " + error.message);
     });
 }

@@ -3,7 +3,7 @@ import { uploadFile } from './upload.js';
 console.log("dashboard.js loaded");
 
 document.addEventListener("DOMContentLoaded", function () {
-    const token = localStorage.getItem("token");
+    let token = localStorage.getItem("token");
     let username = localStorage.getItem("username");
 
     if (!token) {
@@ -13,61 +13,86 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     const creditsCountElement = document.querySelector('.credits-count');
-    const fileInput = document.querySelector('#fileInput'); // Ensure this element exists
+    if (!creditsCountElement) {
+        console.error("Credits count element not found in DOM.");
+        return;
+    }
 
     function updateCreditsDisplay(credits) {
-        creditsCountElement.textContent = credits;
-        localStorage.setItem("credits" + username, credits);
+        if (typeof credits === 'number' && !isNaN(credits)) {
+            creditsCountElement.textContent = credits;
+            localStorage.setItem("credits_" + username, credits);
+        } else {
+            creditsCountElement.textContent = '20'; // Default to 20 if invalid
+            localStorage.setItem("credits_" + username, '20');
+        }
     }
 
     // Fetch and display credits
     function fetchCredits() {
-        const token = localStorage.getItem("token");
-        
+        token = localStorage.getItem("token"); // Refresh token before fetching
+
         if (!token) {
-            alert("⚠️ No token found. Please log in.");
+            console.error("No token found");
+            updateCreditsDisplay(20); // Set default credits
             return;
         }
-    
+
         fetch("http://localhost:3000/user/credits", {
             method: "GET",
             headers: {
-                "Authorization": `Bearer ${token}`
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log("Credits response status:", response.status); // Log the response status
+            if (!response.ok) {
+                console.error("Credits response error:", response.status, response.statusText);
+                throw new Error(`HTTP error! status: ${response.status}, text: ${response.statusText}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            if (data.credits !== undefined) {
+            console.log("Credits response data:", data); // Log the response data
+            if (data && data.credits !== undefined) {
                 updateCreditsDisplay(data.credits);
             } else {
-                console.error("Credits data is undefined.");
+                updateCreditsDisplay(20);
+                console.warn("No credits found, using default value");
             }
         })
-        .catch(error => console.error("Error fetching credits:", error));
+        .catch(error => {
+            console.error("Error fetching credits:", error);
+            updateCreditsDisplay(20); // Set default credits on error
+            if (error.message.includes("401")) {
+                localStorage.removeItem("token");
+                window.location.href = "login.html";
+            }
+        });
     }
-    
+
     fetchCredits(); // Initial call to update credits
 
     // Request Credits Function
     document.querySelector('.request-btn').addEventListener('click', function () {
         let currentCredits = parseInt(creditsCountElement.textContent, 10);
-    
+
         if (currentCredits > 5) {
             alert("⚠️ You can only request credits if you have 5 or fewer credits.");
             return;
         }
-    
+
         const creditAmount = parseInt(document.querySelector('#creditAmount').value, 10);
+        console.log("Credit Amount:", creditAmount); // Log the credit amount
         if (creditAmount >= 0 && creditAmount <= 10) {
-            const token = localStorage.getItem("token");  // Ensure the token is retrieved
+            token = localStorage.getItem("token");  // Ensure the token is retrieved
             
-            // Check if the token is available
             if (!token) {
                 alert("⚠️ You need to be logged in to request credits.");
                 return;
             }
-    
-            // Make the request to the backend
+
             fetch("http://localhost:3000/user/request-credits", {
                 method: "POST",
                 headers: {
@@ -79,28 +104,10 @@ document.addEventListener("DOMContentLoaded", function () {
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
-                    alert(data.error);  // Show error if the backend sends an error
+                    alert(data.error);
                 } else {
-                    alert(data.message);  // Show success message
-    
-                    // After the request is successful, trigger the fetch to update credits
-                    fetchCredits();  // Function to update the user's current credits
-    
-                    // Optionally, trigger a notification for the admin (if your backend handles it)
-                    fetch("http://localhost:3000/admin/credit-requests", {
-                        method: "GET",
-                        headers: {
-                            "Authorization": `Bearer ${token}`
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(adminData => {
-                        if (adminData && adminData.requests) {
-                            // Here you can update the notifications section or inform the admin
-                            // about the new credit request (this part can be used for the admin page).
-                        }
-                    })
-                    .catch(err => console.error("Error fetching admin requests:", err));
+                    alert(data.message);
+                    fetchCredits();
                 }
             })
             .catch(error => {
@@ -125,53 +132,222 @@ document.addEventListener("DOMContentLoaded", function () {
     // **Scanning & Deducting Credit**
     document.querySelector('.scan-btn').addEventListener('click', function () {
         console.log("Scan button clicked");
-    
-        const fileInput = document.querySelector('#fileInput'); // Ensure this exists
-        console.log("File input element:", fileInput);
-    
+        const fileInput = document.getElementById("fileInput");
         if (!fileInput) {
-            alert("⚠️ File input not found in DOM.");
+            console.error("File input element not found in DOM.");
+            alert("⚠️ File input not found.");
             return;
         }
-    
-        const file = fileInput.files[0]; // Get the selected file
-        console.log("File selected:", file);
-    
-        if (!file) {
+        if (fileInput.files.length === 0) {
             alert("⚠️ No file selected! Please choose a file before scanning.");
             return;
         }
-    
-        alert("✅ Scanning started...");
-    
-        setTimeout(() => {
-            alert("⏳ Scanning in progress...");
-            console.log("Scanning in progress...");
-    
-            setTimeout(() => {
-                uploadFile(file, deductCredit); // Call the function to upload and pass deductCredit as callback
-            }, 1000);
-    
-        }, 1000);
+        const file = fileInput.files[0];
+        console.log("File selected:", file);
+
+        // Show loading indicator
+        const scanButton = document.querySelector('.scan-btn');
+        scanButton.disabled = true;
+        scanButton.textContent = 'Scanning...';
+        document.querySelector('.loading-bar-container').style.display = 'block';
+
+        uploadFile(file)
+            .then(data => {
+                // Initiate the scan after successful upload
+                scanDocument(data.documentId);
+            })
+            .catch(error => {
+                // Hide loading indicator
+                scanButton.disabled = false;
+                scanButton.textContent = 'Scan';
+                document.querySelector('.loading-bar-container').style.display = 'none';
+                console.error("Error during file upload:", error);
+                alert("⚠️ Something went wrong while uploading the file. Please try again later.");
+            });
     });
 
-    // Deduct 1 Credit After Scanning
-    function deductCredit() {
-        fetch("http://localhost:3000/user/deduct-credit", {
+    
+    function uploadFile(file) {
+        return new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append("file", file);
+
+            token = localStorage.getItem("token"); // Ensure token is up-to-date
+            fetch("http://localhost:3000/user/upload", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                },
+                body: formData
+            })
+            .then(response => {
+                console.log("Upload response status:", response.status); // ADD THIS LINE
+                if (!response.ok) { // Check if the response status is not OK
+                    console.error("Upload response error:", response.status, response.statusText); // ADD THIS LINE
+                    return response.json().then(err => { throw err; }); // ADD THIS LINE
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    console.error("Upload error:", data.error);
+                    alert(data.error);
+                    reject(data.error);
+                } else {
+                    console.log("Upload response:", data);
+                    resolve({ documentId: data.documentId }); // MODIFIED THIS LINE
+                }
+            })
+            .catch(error => {
+                console.error("Error uploading file:", error);
+                alert("⚠️ Something went wrong while uploading the file. Please try again later.");
+                reject(error);
+            });
+        });
+    }
+
+    function scanDocument(documentId) {
+        const token = localStorage.getItem('token');
+        const loadingBarContainer = document.querySelector('.loading-bar-container');
+        const loadingProgress = document.querySelector('.loading-progress');
+        const loadingText = document.querySelector('.loading-text');
+
+        loadingBarContainer.style.display = 'block';
+        loadingProgress.style.width = '0%';
+        loadingText.textContent = 'Starting scan... 0%';
+
+        const scanUrl = `http://localhost:3000/scan/${documentId}`;
+        console.log("Scanning document with ID:", documentId); // ADD THIS LINE
+        const username = localStorage.getItem('username');
+        let progress = 0;
+
+        // Reset and show loading bar
+        loadingProgress.style.width = '0%';
+        loadingBarContainer.style.display = 'block';
+
+        // Animate progress bar
+        const progressInterval = setInterval(() => {
+            progress += 2;
+            if (progress <= 90) {
+                loadingProgress.style.width = `${progress}%`;
+                loadingText.textContent = `Scanning in progress... ${progress}%`;
+            }
+        }, 100);
+
+        token = localStorage.getItem("token");
+        fetch(`http://localhost:3000/scan/${documentId}`, {
             method: "POST",
             headers: {
-                "Authorization": `Bearer ${token}`, // Fixed template literal syntax
+                "Authorization": `Bearer ${token}`,
                 "Content-Type": "application/json"
             }
         })
         .then(response => response.json())
         .then(data => {
+            clearInterval(progressInterval);
+            loadingProgress.style.width = '100%';
+            loadingText.textContent = 'Scan complete!';
+
             if (data.success) {
-                fetchCredits(); // Fetch new credit count after deduction
+                displaySimilarDocuments(data.similarDocuments);
+                deductCredit()
+                .then(() => {
+                    setTimeout(() => {
+                        loadingBarContainer.style.display = 'none';
+                    }, 500);
+                })
+                .catch(creditError => {
+                    loadingBarContainer.style.display = 'none';
+                    console.error("Error deducting credit:", creditError);
+                    alert("⚠️ Scan completed, but credit deduction failed.");
+                });
             } else {
-                alert(data.error || "Error deducting credit.");
+                loadingBarContainer.style.display = 'none';
+                alert("⚠️ " + (data.error || "Scan failed"));
             }
         })
-        .catch(error => console.error("Error deducting credit:", error));
+        .catch(error => {
+            clearInterval(progressInterval);
+            loadingBarContainer.style.display = 'none';
+            console.error("Error during scan:", error);
+            alert("⚠️ Something went wrong during the scan. Please try again later.");
+        });
+    }
+
+    function displaySimilarDocuments(similarDocuments) {
+        const existingResults = document.querySelector('.results-container');
+        if (existingResults) {
+            existingResults.remove();
+        }
+
+        const resultsContainer = document.createElement('div');
+        resultsContainer.className = 'results-container';
+
+        if (!similarDocuments || similarDocuments.length === 0) {
+            resultsContainer.innerHTML = '<h3>No similar documents found</h3>';
+            document.querySelector('.upload-box').after(resultsContainer);
+            return;
+        }
+
+        // Sort documents by similarity
+        similarDocuments.sort((a, b) => b.similarity - a.similarity);
+
+        // Create visual graph
+        let graphHTML = `
+            <h3>Similarity Results</h3>
+            <div class="similarity-graph">
+                ${similarDocuments.slice(0, 10).map(doc => `
+                    <div class="graph-bar">
+                        <div class="bar-label">${doc.file_name}</div>
+                        <div class="bar-container">
+                            <div class="bar" style="width: ${doc.similarity * 100}%"></div>
+                            <span class="percentage">${(doc.similarity * 100).toFixed(1)}%</span>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+
+        resultsContainer.innerHTML = graphHTML;
+        document.querySelector('.upload-box').after(resultsContainer);
+    }
+
+    // Deduct 1 Credit After Scanning
+    function deductCredit() {
+        return new Promise((resolve, reject) => {
+            const currentCredits = parseInt(creditsCountElement.textContent);
+            if (currentCredits <= 0) {
+                alert("⚠️ No credits remaining!");
+                reject("No credits remaining!");
+                return;
+            }
+
+            token = localStorage.getItem("token"); // Refresh token before deducting
+
+            fetch("http://localhost:3000/user/deduct-credit", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    fetchCredits(); // Fetch new credit count after deduction
+                    resolve();
+                } else {
+                    alert(data.error || "Error deducting credit.");
+                    fetchCredits(); // Refresh credits display anyway
+                    reject(data.error || "Error deducting credit.");
+                }
+            })
+            .catch(error => {
+                console.error("Error deducting credit:", error);
+                fetchCredits(); // Refresh credits display on error
+                reject(error);
+            });
+        });
     }
 });
+

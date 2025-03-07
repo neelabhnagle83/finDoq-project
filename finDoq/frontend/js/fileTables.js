@@ -22,8 +22,7 @@ function updateFileTable() {
             const row = document.createElement("tr");
             row.innerHTML = `
                 <td>${file.name}</td>
-                <td>${file.date}</td>
-                <td>${file.size}</td>
+                <td>${file.similarity ? file.similarity.toFixed(2) + '%' : 'N/A'}</td>
                 <td><button onclick="viewFile('${file.view}')">View</button></td>
                 <td><button onclick="downloadFile('${file.download}')">Download</button></td>
             `;
@@ -36,6 +35,12 @@ function updateFileTable() {
 function addFileToTable(file) {
     if (file.type !== "text/plain") {
         alert("⚠️ Please upload only text files (.txt).");
+        return;
+    }
+
+    // Check for duplicate files
+    if (uploadedFiles.some(uploadedFile => uploadedFile.name === file.name)) {
+        alert("⚠️ This file has already been uploaded.");
         return;
     }
 
@@ -68,7 +73,7 @@ function addFileToTable(file) {
 // Function to handle file download
 function downloadFile(downloadUrl) {
     const token = localStorage.getItem("token");
-    fetch(`http://localhost:3000${downloadUrl}`, {
+    fetch(`http://localhost:3000/download/${downloadUrl}`, { // MODIFIED THIS LINE
         method: "GET",
         headers: {
             "Authorization": `Bearer ${token}`,
@@ -76,10 +81,13 @@ function downloadFile(downloadUrl) {
     })
     .then((response) => response.blob())
     .then((blob) => {
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = downloadUrl.split('/').pop();
-        link.click();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = downloadUrl;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     })
     .catch((error) => {
         console.error("Error downloading file:", error);
@@ -130,7 +138,7 @@ function loadUploadedFiles() {
     const token = localStorage.getItem("token");
     fetch("http://localhost:3000/user/documents", {
         headers: {
-            Authorization: `Bearer ${token}`,
+            "Authorization": `Bearer ${token}`,
         },
     })
     .then((response) => response.json())
@@ -140,8 +148,8 @@ function loadUploadedFiles() {
                 name: doc.file_name,
                 size: "N/A",
                 date: "N/A",
-                view: `/view/${doc.id}`,
-                download: `/download/${doc.id}`,
+                view: `/view/${doc.id}`, // MODIFIED THIS LINE
+                download: `/download/${doc.id}`, // MODIFIED THIS LINE
             }));
             updateFileTable();
         }

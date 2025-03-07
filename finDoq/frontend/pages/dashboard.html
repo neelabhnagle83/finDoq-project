@@ -18,15 +18,17 @@
             </ul>
         </nav>
         <div class="user-actions"> 
-            <button class="credits-btn">
-                Credits <span class="credits-count" >Loading...</span>
-            </button>            
             <button class="signout-btn" onclick="logout()">Sign Out</button>
         </div>
     </header>
 
     <!-- ✅ File Upload Section -->
     <main>
+        <div class="credits-container">
+            <button class="credits-btn">
+                Credits <span class="credits-count">Loading...</span>
+            </button>
+        </div>
         <section class="upload-section">
             <h2>Upload Files</h2>
             <p>Our system will scan, verify, and ensure your document's authenticity in seconds</p>
@@ -39,6 +41,14 @@
             </div>
             <button class="scan-btn">Start scanning</button> <!-- No credit deduction here -->
         </section>
+
+        <!-- Loading Bar -->
+        <div class="loading-bar-container">
+            <div class="loading-bar">
+                <div class="loading-progress" style="width: 0%;"></div>
+            </div>
+            <p class="loading-text">Scanning in progress... 0%</p>
+        </div>
 
         <!-- ✅ Request More Credits -->
         <section class="credit-request">
@@ -54,17 +64,20 @@
         <!-- ✅ Recently Uploaded Files -->
         <section class="recent-files">
             <h3>Recently Uploaded</h3>
-            <div class="table-container">  <table border="1" style="width: 100%; border-collapse: collapse; text-align: center;">
+            <div class="table-container">  
+                <table border="1" style="width: 100%; border-collapse: collapse; text-align: center;">
                     <thead>
                         <tr>
                             <th>File Name</th>
-                            <th>Date</th>
-                            <th>File Size</th>
+                            <th>Similarity</th>
                             <th>View</th>
                             <th>Download</th>
                         </tr>
                     </thead>
                     <tbody id="fileTableBody">
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: gray;">No files uploaded</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -105,7 +118,7 @@
     </script>
 
     <script src="../js/fileTables.js"></script>
-    <script src="../js/dashboard.js"></script>
+    <script src="../js/dashboard.js" type="module"></script>
     <script src="../js/upload.js" type="module"></script>
 </body>
 </html>

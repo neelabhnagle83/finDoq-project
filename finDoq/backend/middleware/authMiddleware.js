@@ -2,24 +2,23 @@ const jwt = require("jsonwebtoken");
 const SECRET_KEY = "finDoq@098";
 
 const authenticateToken = (req, res, next) => {
-  const token = req.header("Authorization");
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
 
-  // Check if the token is missing
-  if (!token) {
-    return res.status(401).json({ error: "Access denied. No token provided." });
-  }
-
-  // If token is present, check if it has the 'Bearer' prefix
-  const tokenWithoutBearer = token.startsWith("Bearer ") ? token.slice(7) : token;
-
-  // Verify the token
-  jwt.verify(tokenWithoutBearer, SECRET_KEY, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: "Invalid or expired token." });
+    if (!token) {
+        console.log("No token provided");
+        return res.status(401).json({ error: "No token provided" });
     }
-    req.user = user; // Attach the user object to the request
-    next();
-  });
+
+    jwt.verify(token, SECRET_KEY, (err, user) => {
+        if (err) {
+            console.log("Invalid token:", err.message);
+            return res.status(403).json({ error: "Invalid token" });
+        }
+
+        req.user = user;
+        next();
+    });
 };
 
 module.exports = { authenticateToken };

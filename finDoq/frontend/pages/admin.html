@@ -62,7 +62,8 @@
                 <thead>
                     <tr>
                         <th><input type="checkbox" id="selectAllRequests" onclick="toggleSelectAllRequests(this)"></th>
-                        <th>User ID</th>
+                        <!-- Changed header from "User ID" to "Username" -->
+                        <th>Username</th>
                         <th>Requested Credits</th>
                         <th>Action</th>
                     </tr>
@@ -75,133 +76,5 @@
     </div>
 
     <script src="../js/admin.js"></script>
-    <script>
-        function showSection(section) {
-            // Hide all sections
-            const sections = document.querySelectorAll('.section-content');
-            sections.forEach((sec) => {
-                sec.classList.remove('active');
-            });
-
-            // Show the selected section
-            document.getElementById(section).classList.add('active');
-
-            // Update the active navbar item
-            const navbarItems = document.querySelectorAll('.admin-navbar span');
-            navbarItems.forEach((item) => {
-                item.classList.remove('active');
-            });
-            const selectedNavItem = document.querySelector(`.admin-navbar span[onclick="showSection('${section}')"]`);
-            selectedNavItem.classList.add('active');
-        }
-
-        function logout() {
-            localStorage.removeItem("token");
-            localStorage.removeItem("username");
-            alert("✅ Logged out successfully!");
-            window.location.href = "index.html";
-        }
-
-        // Function to toggle all checkboxes when "Select All" is clicked for users
-        function toggleSelectAllUsers(selectAllCheckbox) {
-            const checkboxes = document.querySelectorAll('.user-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = selectAllCheckbox.checked;
-            });
-        }
-
-        // Function to delete selected users
-        function deleteSelectedUsers() {
-            const checkboxes = document.querySelectorAll('.user-checkbox:checked');
-            
-            if (checkboxes.length === 0) {
-                alert("⚠️ Please select at least one user to delete.");
-                return;
-            }
-
-            const confirmed = confirm("Are you sure you want to delete the selected users?");
-            if (!confirmed) return;
-
-            const token = localStorage.getItem("token");
-            let deletionCount = 0;
-            let errorOccurred = false;
-            const totalCheckboxes = checkboxes.length;
-
-            checkboxes.forEach(checkbox => {
-                const userId = checkbox.getAttribute("data-user-id");
-                const row = checkbox.closest("tr");
-
-                fetch(`http://localhost:3000/admin/users/${userId}`, {
-                    method: "DELETE",
-                    headers: {
-                        "Authorization": `Bearer ${token}`
-                    }
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Unexpected status code: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    row.remove(); // Remove the row from the table
-                    deletionCount++;
-                })
-                .catch(error => {
-                    console.error(`Error deleting user ID ${userId}:`, error);
-                    errorOccurred = true;
-                });
-            });
-
-            setTimeout(() => {
-                if (errorOccurred) {
-                    alert("⚠️ Some errors occurred while deleting users. Please check the console.");
-                } else if (deletionCount === totalCheckboxes) {
-                    alert("✅ Selected users have been deleted successfully.");
-                } else {
-                    alert("✅ Some users were deleted successfully.");
-                }
-            }, 100 * totalCheckboxes);
-        }
-
-        // Function to load users from the database
-        function loadUsersFromDB() {
-            const token = localStorage.getItem("token");
-            const userTableBody = document.getElementById("userTableBody");
-            userTableBody.innerHTML = ""; // Clear existing users
-
-            fetch("http://localhost:3000/admin/users", {
-                method: "GET",
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.users.length === 0) {
-                    userTableBody.innerHTML = `
-                        <tr><td colspan="6" style="text-align: center; color: gray;">No users available</td></tr>
-                    `;
-                    return;
-                }
-
-                data.users.forEach(user => {
-                    const row = document.createElement("tr");
-                    row.innerHTML = `
-                        <td><input type="checkbox" class="user-checkbox" data-user-id="${user.id}"></td>
-                        <td>${user.username}</td>
-                        <td>${user.role}</td>
-                        <td>${user.filesUploaded}</td>
-                        <td>${user.credits}</td>
-                    `;
-                    userTableBody.appendChild(row);
-                });
-            })
-            .catch(error => console.error("Error fetching users:", error));
-        }
-
-        // Load users when page loads
-       //document.addEventListener("DOMContentLoaded", loadUsersFromDB);
-    </script>
 </body>
 </html>
