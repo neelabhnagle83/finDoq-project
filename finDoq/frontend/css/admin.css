@@ -1,0 +1,193 @@
+/* ✅ Apply Fonts Globally */
+* {
+    font-family: 'Montserrat', sans-serif !important;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', sans-serif !important;
+}
+
+/* ✅ Background Color */
+body {
+    background-color: #220138 !important;
+    color: white;
+    text-align: center;
+    padding: 20px;
+}
+
+/* ✅ Header Styling (Copied from Dashboard) */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0px 50px;
+}
+
+.logo {
+    font-size: 3rem;
+    font-weight: bold;
+    color: white;
+}
+
+.user-actions {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+/* ✅ Sign Out Button */
+.signout-btn {
+    background-color: #641074;
+    color: white;
+    font-size: 1rem;
+    font-weight: bold;
+    border: 1px solid azure;
+    border-radius: 8px;
+    cursor: pointer;
+    padding: 10px 25px;
+    height: 45px;
+    transition: 0.3s;
+}
+
+.signout-btn:hover {
+    background-color: #7a1a8f;
+}
+
+/* ✅ Admin Navigation Bar */
+.admin-navbar {
+    display: flex;
+    justify-content: center;
+    gap: 50px;
+    padding: 15px 0;
+    border-radius: 8px;
+    width: 60%;
+    margin: 20px auto;
+}
+
+.admin-navbar span {
+    font-size: 20px;
+    font-weight: bold;
+    color: #cdcdcd;
+    cursor: pointer;
+    padding: 12px 25px;
+    transition: 0.3s;
+    border-radius: 5px;
+}
+
+.admin-navbar span:hover, .admin-navbar span.active {
+    color: white;
+    font-weight: bold;
+}
+
+/* ✅ Section Content */
+.section-content {
+    display: none;
+    padding: 20px;
+    margin-bottom: 40px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    height: 74vh;
+    overflow: hidden;
+}
+.scrollable-content {
+    height: 85%; 
+    overflow-y: auto; 
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+/* ✅ Show Active Section */
+.section-content.active {
+    display: block;
+}
+
+/* ✅ Table Styling for Uploaded Files */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+/* ✅ Table Header */
+table thead {
+    background-color: #300837;
+}
+
+table th, table td {
+    font-size: 1.2rem;
+    border: 1px solid white;
+    padding: 20px;
+    text-align: center;
+}
+
+table th {
+    background-color: #300837;
+}
+
+/* ✅ Delete Button Styling */
+.delete-btn {
+    background-color: #d9534f;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 14px;
+    /* display: block; */
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.delete-btn:hover {
+    background-color: #c9302c;
+}
+
+/* ✅ Increase Checkbox Size */
+input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+/* ✅ Button Styling */
+.accept-selected-btn, .reject-selected-btn {
+    color: white;
+    padding: 10px;
+    margin: 10px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.accept-selected-btn {
+    background-color: #4CAF50;
+}
+
+.reject-selected-btn {
+    background-color: #d9534f;
+}
+
+.accept-selected-btn:hover, .reject-selected-btn:hover {
+    background-color: #768523;
+}
+
+button {
+    margin: 0 5px;
+    padding: 5px 10px;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+button:hover {
+    opacity: 0.8;
+}
+
+.section-content h2{
+    margin-bottom: 20px;
+}

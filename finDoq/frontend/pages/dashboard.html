@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinDoq - User Dashboard</title>
+    <link rel="stylesheet" href="../css/dashboard.css">
+</head>
+<body>
+    <!-- ✅ Header Section -->
+    <header>
+        <div class="logo">FinDoq</div>
+        <nav>
+            <ul>
+                <li><a href="#">How it works?</a></li>
+                <li><a href="#">Contact us</a></li>
+                <li><a href="#">About us</a></li>
+            </ul>
+        </nav>
+        <div class="user-actions"> 
+            <button class="credits-btn">
+                Credits <span class="credits-count" >Loading...</span>
+            </button>            
+            <button class="signout-btn" onclick="logout()">Sign Out</button>
+        </div>
+    </header>
+
+    <!-- ✅ File Upload Section -->
+    <main>
+        <section class="upload-section">
+            <h2>Upload Files</h2>
+            <p>Our system will scan, verify, and ensure your document's authenticity in seconds</p>
+            <div class="upload-box">
+                <img src="../assets/images/Cloud character devours paper files.png" alt="Upload Icon">
+                <p>Drag and Drop your file here</p>
+                <p class="or-text">or</p>
+                <button class="browse-btn">Browse</button>
+                <input type="file" id="fileInput" style="display: none;" accept=".txt">
+            </div>
+            <button class="scan-btn">Start scanning</button> <!-- No credit deduction here -->
+        </section>
+
+        <!-- ✅ Request More Credits -->
+        <section class="credit-request">
+            <h3>Request more Credits</h3>
+            <p>Admin will grant your request as soon as possible. Meanwhile, check out our new features.</p>
+            <div class="credit-input">
+                <input type="number" id="creditAmount" placeholder="Enter the number of credits..." min="0" max="10" oninput="validateCreditInput()">
+                <button class="request-btn">Request</button>
+                <img src="../assets/icons/info.png" alt="Info" class="info-icon" onmouseover="showInfoPopup()" onmouseout="hideInfoPopup()">
+            </div>
+        </section>
+
+        <!-- ✅ Recently Uploaded Files -->
+        <section class="recent-files">
+            <h3>Recently Uploaded</h3>
+            <div class="table-container">  <table border="1" style="width: 100%; border-collapse: collapse; text-align: center;">
+                    <thead>
+                        <tr>
+                            <th>File Name</th>
+                            <th>Date</th>
+                            <th>File Size</th>
+                            <th>View</th>
+                            <th>Download</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fileTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- ✅ Footer (Included) -->
+    <div id="footer-container"></div>
+
+    <script>
+        // Logout function
+        function logout() {
+            localStorage.removeItem("token");
+            localStorage.removeItem("username");
+            alert("✅ Logged out successfully!");
+            window.location.href = "login.html";
+        }
+
+        // Validate the credit input to ensure it is between 0 and 10
+        function validateCreditInput() {
+            let input = document.getElementById("creditAmount");
+            if (input.value < 0) input.value = 0;
+            if (input.value > 10) input.value = 10;
+        }
+
+        // Load footer
+        fetch("../components/footer.html")
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById("footer-container").innerHTML = data;
+                // Dynamically load the CSS for the footer
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = '../components/footer.css';  // Path to the CSS file
+                document.head.appendChild(link);
+            })
+            .catch(error => console.error("Error loading footer:", error));
+    </script>
+
+    <script src="../js/fileTables.js"></script>
+    <script src="../js/dashboard.js"></script>
+    <script src="../js/upload.js" type="module"></script>
+</body>
+</html>

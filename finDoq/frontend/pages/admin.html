@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+    <header>
+        <div class="logo">FinDoq</div>
+        <nav class="admin-navbar">
+            <span onclick="showSection('files')" class="active">View Files</span>
+            <span onclick="showSection('users')">View Users</span>
+            <span onclick="showSection('notifications')">User Requests</span>
+        </nav>
+        <div class="user-actions"> 
+            <button class="signout-btn" onclick="logout()">Sign Out</button>
+        </div>
+    </header>
+
+    <div id="files" class="section-content active">
+        <h2>Uploaded Files</h2>
+        <div class="scrollable-content"> <table>
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll" onclick="toggleSelectAllFiles(this)"></th>
+                        <th>File Name</th>
+                        <th>Time Uploaded</th>
+                        <th>File Size</th> 
+                        <th>View</th>
+                        <th>Download</th>
+                    </tr>
+                </thead>
+                <tbody id="fileTableBody">
+                    </tbody>
+            </table>
+        </div> <button class="delete-btn" onclick="deleteSelectedFiles()">Delete Files</button>
+    </div>
+    
+    <div id="users" class="section-content">
+        <h2>Manage Users</h2>
+        <div class="scrollable-content"> <table>
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAllUsers" onclick="toggleSelectAllUsers(this)"></th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Total Files Uploaded</th>
+                        <th>Credits</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody">
+                    </tbody>
+            </table>
+        </div> <button class="delete-btn" onclick="deleteSelectedUsers()">Delete User</button>
+    </div>
+
+    <div id="notifications" class="section-content">
+        <h2>Credit Requests</h2>
+        <div class="scrollable-content"> <table>
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAllRequests" onclick="toggleSelectAllRequests(this)"></th>
+                        <th>User ID</th>
+                        <th>Requested Credits</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="notificationTableBody">
+                    </tbody>
+            </table>
+        </div> <button class="accept-selected-btn" onclick="acceptSelectedRequests()">Accept Selected</button>
+        <button class="reject-selected-btn" onclick="rejectSelectedRequests()">Reject Selected</button>
+    </div>
+
+    <script src="../js/admin.js"></script>
+    <script>
+        function showSection(section) {
+            // Hide all sections
+            const sections = document.querySelectorAll('.section-content');
+            sections.forEach((sec) => {
+                sec.classList.remove('active');
+            });
+
+            // Show the selected section
+            document.getElementById(section).classList.add('active');
+
+            // Update the active navbar item
+            const navbarItems = document.querySelectorAll('.admin-navbar span');
+            navbarItems.forEach((item) => {
+                item.classList.remove('active');
+            });
+            const selectedNavItem = document.querySelector(`.admin-navbar span[onclick="showSection('${section}')"]`);
+            selectedNavItem.classList.add('active');
+        }
+
+        function logout() {
+            localStorage.removeItem("token");
+            localStorage.removeItem("username");
+            alert("✅ Logged out successfully!");
+            window.location.href = "index.html";
+        }
+
+        // Function to toggle all checkboxes when "Select All" is clicked for users
+        function toggleSelectAllUsers(selectAllCheckbox) {
+            const checkboxes = document.querySelectorAll('.user-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+        }
+
+        // Function to delete selected users
+        function deleteSelectedUsers() {
+            const checkboxes = document.querySelectorAll('.user-checkbox:checked');
+            
+            if (checkboxes.length === 0) {
+                alert("⚠️ Please select at least one user to delete.");
+                return;
+            }
+
+            const confirmed = confirm("Are you sure you want to delete the selected users?");
+            if (!confirmed) return;
+
+            checkboxes.forEach(checkbox => {
+                const row = checkbox.closest("tr"); // Get the row of the selected user
+                row.remove(); // Remove the row from the table
+            });
+
+            alert("✅ Selected users have been deleted.");
+        }
+
+        // Function to load users from the database
+        function loadUsersFromDB() {
+            const token = localStorage.getItem("token");
+            const userTableBody = document.getElementById("userTableBody");
+            userTableBody.innerHTML = ""; // Clear existing users
+
+            fetch("http://localhost:3000/admin/users", {
+                method: "GET",
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.users.length === 0) {
+                    userTableBody.innerHTML = `
+                        <tr><td colspan="6" style="text-align: center; color: gray;">No users available</td></tr>
+                    `;
+                    return;
+                }
+
+                data.users.forEach(user => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td><input type="checkbox" class="user-checkbox" data-user-id="${user.id}"></td>
+                        <td>${user.username}</td>
+                        <td>${user.role}</td>
+                        <td>${user.filesUploaded}</td>
+                        <td>${user.credits}</td>
+                    `;
+                    userTableBody.appendChild(row);
+                });
+            })
+            .catch(error => console.error("Error fetching users:", error));
+        }
+
+        // Load users when page loads
+       //document.addEventListener("DOMContentLoaded", loadUsersFromDB);
+    </script>
+</body>
+</html>

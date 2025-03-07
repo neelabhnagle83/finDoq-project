@@ -1,0 +1,310 @@
+/* 🌙 Background Colors */
+body {
+    background-color: #220138;
+    color: white;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* ✅ Header */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 50px;
+}
+
+.logo {
+    font-size: 3rem;
+    font-weight: bold;
+}
+
+nav ul {
+    list-style: none;
+    display: flex;
+    gap: 20px;
+}
+nav ul li {
+    margin: 0 20px;
+}
+
+nav ul li:hover {
+    color: #ccc;
+    font-weight: bold;
+}
+
+nav ul li a {
+    text-decoration: none;
+    color: #cdcdcd;
+    font-size: 20px;
+}
+
+/* ✅ Buttons */
+button {
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+.credits-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: transparent;
+    color: white;
+    font-size: 1rem;
+    font-weight: bold;
+    border: 2px solid #7a1a8f;
+    padding: 10px 25px;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: 0.3s;
+    height: 45px;
+}
+
+.credits-count {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: transparent;
+    border: 2px solid #cdcdcd;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    font-size: 1rem;
+    font-weight: bold;
+}
+
+/* Hover effect */
+.credits-btn:hover {
+    background-color: #641074;
+}
+
+.user-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.browse-btn {
+    background-color: #641074;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 1rem;
+}
+
+.browse-btn:hover {
+    background-color: #7a1a8f;
+}
+
+.scan-btn,
+.request-btn {
+    background-color: #300837;
+    color: white;
+    border: 1px solid azure;
+    padding: 15px 25px;
+    cursor: pointer;
+    border-radius: 10px;
+    font-size: 1rem;
+    width: 250px;
+    text-align: center;
+    transition: background 0.3s ease-in-out;
+}
+
+.request-btn {
+    width: 148px;
+}
+
+.scan-btn:hover,
+.request-btn:hover {
+    background-color: #641074;
+}
+
+/* Logout Button */
+.signout-btn {
+    background-color: #641074;
+    color: white;
+    font-size: 1rem;
+    font-weight: bold;
+    border: 1px solid azure;
+    border-radius: 25px;
+    cursor: pointer;
+    padding: 10px 25px;
+    height: 45px;
+    transition: 0.3s;
+}
+
+.signout-btn:hover {
+    background-color: #7a1a8f;
+}
+
+/* ✅ Navbar */
+.navbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 15px;
+    background-color: #300837;
+}
+
+.navbar-buttons {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* ✅ File Upload Section */
+.upload-section {
+    text-align: center;
+    padding: 40px;
+}
+
+.upload-section h2 {
+    font-size: 2.2rem;
+}
+
+.upload-section p {
+    font-size: 1rem;
+    margin-top: -19px;
+    color: #bbbaba;
+}
+
+.upload-box {
+    border: 2px dashed white;
+    padding: 30px;
+    margin: 20px auto;
+    width: 50%;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.upload-box img {
+    width: 24%;
+}
+
+.upload-box p {
+    margin: 5px 0;
+    font-size: 1rem;
+    color: white;
+}
+
+.or-text {
+    font-size: 1rem;
+    font-weight: bold;
+    color: white;
+}
+
+/* ✅ Request More Credits Section */
+.credit-request {
+    background: linear-gradient(to right, rgba(48, 8, 55, 0.1) 0%, rgba(100, 16, 116, 0.3) 100%);
+    padding-top: 20px;
+    padding-bottom: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    margin: 20px auto;
+    gap: 10px;
+    width: 100%;
+    flex-direction: column;
+}
+
+.credit-request h3 {
+    font-size: 2.2rem;
+    margin-bottom: -16px;
+    margin-top: 6px;
+}
+
+.credit-request p {
+    color: #ddd;
+    font-size: 1rem;
+    margin-bottom: 15px;
+}
+
+.credit-input {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    width: 100%;
+}
+
+.credit-input input {
+    height: 32px;
+    padding: 10px;
+    width: 250px;
+    border: 1px solid #641074;
+    border-radius: 8px;
+    background-color: #220138;
+    color: white;
+}
+
+/* ✅ Recent Files */
+.recent-files {
+    padding: 30px;
+    text-align: center;
+}
+
+.recent-files table { /* Added .recent-files to table*/
+    width: 100%;
+    margin: auto;
+    border-collapse: collapse;
+}
+.table-container{display: block; /* Make the table a block element */
+    overflow-y: auto; /* Enable vertical scrolling */
+    height: 300px; /* Set a fixed height for the table (adjust as needed) */
+}
+    
+
+table th, table td { /* added table before th and td */
+    border: 1px solid white;
+    padding: 10px;
+}
+
+table th { /* added table before th */
+    background-color: #300837;
+}
+
+/* ✅ Footer */
+footer {
+    text-align: center;
+    padding: 20px;
+    background-color: #300837;
+}
+
+.info-icon {
+    position: relative;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+    margin-left: 10px;
+}
+
+.credit-request {
+    position: relative;
+}
+
+.info-popup {
+    position: absolute;
+    background-color: white;
+    border: 1px solid #ccc;
+    padding:15px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    width: 250px;
+    font-size: 14px;
+    z-index: 9999;
+    display: block;
+}
+
+.info-popup p {
+    margin: 5px 0;
+    font-size: 14px;
+    color: #333;
+}
