@@ -122,12 +122,46 @@
             const confirmed = confirm("Are you sure you want to delete the selected users?");
             if (!confirmed) return;
 
+            const token = localStorage.getItem("token");
+            let deletionCount = 0;
+            let errorOccurred = false;
+            const totalCheckboxes = checkboxes.length;
+
             checkboxes.forEach(checkbox => {
-                const row = checkbox.closest("tr"); // Get the row of the selected user
-                row.remove(); // Remove the row from the table
+                const userId = checkbox.getAttribute("data-user-id");
+                const row = checkbox.closest("tr");
+
+                fetch(`http://localhost:3000/admin/users/${userId}`, {
+                    method: "DELETE",
+                    headers: {
+                        "Authorization": `Bearer ${token}`
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Unexpected status code: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    row.remove(); // Remove the row from the table
+                    deletionCount++;
+                })
+                .catch(error => {
+                    console.error(`Error deleting user ID ${userId}:`, error);
+                    errorOccurred = true;
+                });
             });
 
-            alert("✅ Selected users have been deleted.");
+            setTimeout(() => {
+                if (errorOccurred) {
+                    alert("⚠️ Some errors occurred while deleting users. Please check the console.");
+                } else if (deletionCount === totalCheckboxes) {
+                    alert("✅ Selected users have been deleted successfully.");
+                } else {
+                    alert("✅ Some users were deleted successfully.");
+                }
+            }, 100 * totalCheckboxes);
         }
 
         // Function to load users from the database
