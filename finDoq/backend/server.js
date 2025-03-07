@@ -24,6 +24,43 @@ const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE, (err) => {
     }
 });
 
+// Import routes
+const authRoutes = require("./routes/authRoutes");
+const userRoutes = require("./routes/userRoutes");
+const creditRoutes = require("./routes/creditRoutes");
+const documentRoutes = require("./routes/documentRoutes");
+
+app.use("/auth", authRoutes);
+app.use("/user", userRoutes);
+app.use("/credits", creditRoutes);
+app.use("/documents", documentRoutes);
+
+// Reset user credits to 20 at midnight
+const resetUserCredits = () => {
+    db.run("UPDATE users SET credits = 20", (err) => {
+        if (err) {
+            console.error("❌ Error resetting user credits:", err.message);
+        } else {
+            console.log("✅ User credits reset to 20");
+        }
+    });
+};
+
+// Schedule the reset to run at midnight
+const scheduleDailyReset = () => {
+    const now = new Date();
+    const midnight = new Date();
+    midnight.setHours(24, 0, 0, 0);
+    const timeToMidnight = midnight.getTime() - now.getTime();
+
+    setTimeout(() => {
+        resetUserCredits();
+        setInterval(resetUserCredits, 24 * 60 * 60 * 1000); // Repeat every 24 hours
+    }, timeToMidnight);
+};
+
+scheduleDailyReset();
+
 // ... (rest of your code) ...
 
 // deleting 
@@ -135,7 +172,28 @@ app.get("/user/credits", authenticateToken, (req, res) => {
     });
 });
 
-// Request more credits
+// Deduct 1 credit after scanning
+app.post("/user/deduct-credit", authenticateToken, (req, res) => {
+    const username = req.user.username;
+
+    db.get("SELECT credits FROM users WHERE username = ?", [username], (err, user) => {
+        if (err) {
+            return res.status(500).json({ error: "Database error while fetching user credits" });
+        }
+        if (user.credits < 1) {
+            return res.status(400).json({ error: "Insufficient credits" });
+        }
+
+        // Deduct 1 credit
+        db.run("UPDATE users SET credits = credits - 1 WHERE username = ?", [username], (err) => {
+            if (err) {
+                return res.status(500).json({ error: "Database error while deducting credits" });
+            }
+            res.json({ success: true, message: "Credit deducted successfully" });
+        });
+    });
+});
+
 // Request more credits
 app.post("/user/request-credits", authenticateToken, (req, res) => {
   const uname = req.user.username; // Change from to username

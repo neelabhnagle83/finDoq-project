@@ -1,3 +1,5 @@
+import { uploadFile } from './upload.js';
+
 console.log("dashboard.js loaded");
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -44,8 +46,7 @@ document.addEventListener("DOMContentLoaded", function () {
         .catch(error => console.error("Error fetching credits:", error));
     }
     
-    fetchCredits();
-      // Initial call to update credits
+    fetchCredits(); // Initial call to update credits
 
     // Request Credits Function
     document.querySelector('.request-btn').addEventListener('click', function () {
@@ -110,7 +111,6 @@ document.addEventListener("DOMContentLoaded", function () {
             alert("⚠️ Please enter a valid number of credits (between 0 and 10).");
         }
     });
-    
 
     // Logout function
     function logout() {
@@ -149,14 +149,11 @@ document.addEventListener("DOMContentLoaded", function () {
             console.log("Scanning in progress...");
     
             setTimeout(() => {
-                uploadFile(file); // Call the function to upload
-                deductCredit(); // Deduct 1 credit
+                uploadFile(file, deductCredit); // Call the function to upload and pass deductCredit as callback
             }, 1000);
     
         }, 1000);
     });
-    
-    
 
     // Deduct 1 Credit After Scanning
     function deductCredit() {

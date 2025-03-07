@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile | FinDoq</title>
+    <link rel="stylesheet" href="../css/global.css">
+    <link rel="stylesheet" href="../css/profile.css">
+</head>
+<body>
+    <header>
+        <div class="logo">FinDoq</div>
+        <nav>
+            <ul>
+                <li><a href="dashboard.html">Dashboard</a></li>
+                <li><a href="profile.html">Profile</a></li>
+                <li><a href="#" onclick="logout()">Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="profile-section">
+            <h2>User Profile</h2>
+            <div class="profile-info">
+                <p><strong>Username:</strong> <span id="username">Loading...</span></p>
+                <p><strong>Credits:</strong> <span id="credits">Loading...</span></p>
+            </div>
+            <div class="profile-documents">
+                <h3>Past Scans</h3>
+                <ul id="documents-list">
+                    <li>Loading...</li>
+                </ul>
+            </div>
+            <div class="profile-requests">
+                <h3>Credit Requests</h3>
+                <ul id="requests-list">
+                    <li>Loading...</li>
+                </ul>
+            </div>
+        </section>
+    </main>
+
+    <script src="../js/profile.js"></script>
+</body>
+</html>

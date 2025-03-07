@@ -15,6 +15,7 @@ db.run(`
   CREATE TABLE IF NOT EXISTS credit_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
+    creditsRequested INTEGER,
     status TEXT DEFAULT 'pending',
     FOREIGN KEY(user_id) REFERENCES users(id)
   )

@@ -1,4 +1,4 @@
-export function uploadFile(file) {
+export function uploadFile(file, onSuccess) {
     const token = localStorage.getItem("token");
     const userId = localStorage.getItem("userId");
 
@@ -18,7 +18,7 @@ export function uploadFile(file) {
 
     console.log("Uploading file...");
 
-    fetch("http://localhost:3000/upload", {
+    fetch("http://localhost:3000/documents/upload", {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${token}`,
@@ -33,7 +33,8 @@ export function uploadFile(file) {
             throw new Error(data.error || "File upload failed.");
         }
 
-        alert("File uploaded successfully")
+        alert("File uploaded successfully");
+        if (onSuccess) onSuccess();
     })
     .catch((error) => {
         console.error("Error uploading file:", error);
