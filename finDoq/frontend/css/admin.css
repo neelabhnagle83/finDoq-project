@@ -93,6 +93,7 @@ header {
     height: 74vh;
     overflow: hidden;
 }
+
 .scrollable-content {
     height: 85%; 
     overflow-y: auto; 
@@ -104,6 +105,35 @@ header {
 /* ✅ Show Active Section */
 .section-content.active {
     display: block;
+}
+
+/* Add these specific styles for admin sections */
+.section-content {
+    display: none;
+    padding: 20px;
+}
+
+.section-content.active {
+    display: block;
+}
+
+#notifications table,
+#users table,
+#files table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #641074;
+}
+
+th {
+    background-color: #300837;
+    color: white;
 }
 
 /* ✅ Table Styling for Uploaded Files */
@@ -127,6 +157,19 @@ table th, table td {
 
 table th {
     background-color: #300837;
+}
+
+/* Serial Number Column */
+table td:first-child {
+    text-align: center;
+    font-weight: bold;
+    color: #cdcdcd;
+    width: 50px;
+}
+
+table th:first-child {
+    text-align: center;
+    width: 50px;
 }
 
 /* ✅ Delete Button Styling */
@@ -190,4 +233,169 @@ button:hover {
 
 .section-content h2{
     margin-bottom: 20px;
+}
+
+/* Table Container */
+.table-container {
+    max-height: 60vh;
+    overflow-y: auto;
+    margin: 20px 0;
+    border-radius: 8px;
+    background: rgba(48, 8, 55, 0.3);
+}
+
+/* Sticky Headers */
+table thead th {
+    position: sticky;
+    top: 0;
+    background: #300837;
+    z-index: 1;
+}
+
+/* Table Styling */
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+th, td {
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #641074;
+}
+
+/* Scrollbar Styling */
+.table-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: #300837;
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: #641074;
+    border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: #7a1a8f;
+}
+
+.cleanup-btn {
+    background-color: #d9534f;  /* Changed to red to indicate destructive action */
+    color: white;
+    padding: 10px 20px;
+    margin-bottom: 20px;
+    border: 1px solid #c9302c;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s;
+}
+
+.cleanup-btn:hover {
+    background-color: #c9302c;
+    transform: scale(1.05);
+}
+
+/* Add specific styling for credit requests table */
+#requests-container table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#requests-container th,
+#requests-container td {
+    border: 1px solid #641074;
+    padding: 15px;
+    text-align: center;
+}
+
+#requests-container th {
+    background-color: #300837;
+    color: white;
+}
+
+/* Enhanced Table Styling for All Admin Tables */
+.table-container table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 15px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+.table-container th,
+.table-container td {
+    padding: 16px;
+    text-align: center;
+    border: 1px solid #641074;
+    position: relative;
+    font-size: 1.1rem;
+}
+
+.table-container th {
+    background: linear-gradient(to bottom, #641074, #300837);
+    color: white;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid #7a1a8f;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.table-container tr:hover {
+    background-color: rgba(100, 16, 116, 0.1);
+    transition: background-color 0.3s ease;
+}
+
+.table-container td {
+    transition: all 0.3s ease;
+}
+
+/* Serial Number Column Enhanced */
+.table-container td:first-child {
+    font-weight: bold;
+    color: #cdcdcd;
+    background-color: rgba(48, 8, 55, 0.5);
+    border-right: 2px solid #641074;
+}
+
+/* Actions Column Enhanced */
+.table-container td:last-child {
+    border-left: 2px solid #641074;
+}
+
+/* Button Styling in Tables */
+.table-container button {
+    padding: 8px 16px;
+    margin: 0 4px;
+    border: none;
+    border-radius: 4px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+/* Status Column Styling */
+td .status {
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+/* Remove duplicate styles */
+#notifications table,
+#users table,
+#files table {
+    margin-top: 0;
 }

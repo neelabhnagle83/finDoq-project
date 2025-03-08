@@ -1,53 +1,59 @@
-document.addEventListener("DOMContentLoaded", function () {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-        alert("⚠️ Unauthorized! Please log in first.");
-        window.location.href = "login.html";
-        return;
+class ProfileController {
+    constructor() {
+        this.state = {
+            username: '',
+            credits: 0,
+            documents: [],
+            creditRequests: []
+        };
+        this.init();
     }
 
-    fetch("http://localhost:3000/user/profile", {
-        method: "GET",
-        headers: {
-            "Authorization": `Bearer ${token}`
+    async init() {
+        await this.loadUserProfile();
+        this.setupEventListeners();
+        this.startAutoRefresh();
+    }
+
+    async loadUserProfile() {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch('/api/user/profile', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            this.updateProfileUI(data);
+        } catch (error) {
+            this.showNotification('error', 'Failed to load profile');
         }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.error) {
-            alert("❌ " + data.error);
-            return;
-        }
+    }
 
-        document.getElementById("username").textContent = data.username;
-        document.getElementById("credits").textContent = data.credits;
+    updateProfileUI(data) {
+        document.getElementById('username').textContent = data.username;
+        document.getElementById('credits').textContent = data.credits;
+        this.renderDocumentHistory(data.documents);
+        this.renderCreditRequests(data.creditRequests);
+    }
 
-        const documentsList = document.getElementById("documents-list");
-        documentsList.innerHTML = "";
-        data.documents.forEach(doc => {
-            const li = document.createElement("li");
-            li.textContent = doc.file_name;
-            documentsList.appendChild(li);
-        });
+    renderDocumentHistory(documents) {
+        const list = document.getElementById('documents-list');
+        list.innerHTML = documents.map(doc => `
+            <li class="document-item">
+                <span>${doc.filename}</span>
+                <span>${new Date(doc.uploadDate).toLocaleDateString()}</span>
+                <button onclick="profile.downloadDocument(${doc.id})">Download</button>
+            </li>
+        `).join('');
+    }
 
-        const requestsList = document.getElementById("requests-list");
-        requestsList.innerHTML = "";
-        data.creditRequests.forEach(req => {
-            const li = document.createElement("li");
-            li.textContent = `Requested ${req.creditsRequested} credits - ${req.status}`;
-            requestsList.appendChild(li);
-        });
-    })
-    .catch(error => {
-        console.error("Error fetching profile:", error);
-        alert("❌ Error fetching profile. Please try again later.");
-    });
-});
-
-function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    alert("✅ Logged out successfully!");
-    window.location.href = "login.html";
+    showNotification(type, message) {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+    }
 }
+
+// Initialize profile
+const profile = new ProfileController();

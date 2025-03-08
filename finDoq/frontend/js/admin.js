@@ -1,542 +1,503 @@
-// Function to switch between sections
-function showSection(sectionId) {
-    document.querySelectorAll('.section-content').forEach(section => {
-        section.classList.remove('active');
-    });
-
-    document.querySelectorAll('.admin-navbar span').forEach(tab => {
-        tab.classList.remove('active');
-    });
-
-    document.getElementById(sectionId).classList.add('active');
-    document.querySelector(`[onclick="showSection('${sectionId}')"]`).classList.add('active');
-
-    // Load relevant data based on section
-    switch(sectionId) {
-        case 'files':
-            loadFilesFromDB();
-            break;
-        case 'users':
-            loadUsersFromDB();
-            break;
-        case 'notifications':  // Changed from 'credits' to 'notifications' to match HTML
-            loadRequestsFromDB();
-            break;
-    }
-}
-
-// Logout Function (Copied from Dashboard)
-function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    alert("✅ Logged out successfully!");
-    window.location.href = "login.html";
-}
-
-// Function to toggle all checkboxes when "Select All" is clicked for files
-function toggleSelectAllFiles(selectAllCheckbox) {
-    const checkboxes = document.querySelectorAll('.file-checkbox');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = selectAllCheckbox.checked;
-    });
-}
-
-// Function to delete selected files
-function deleteSelectedFiles() {
-    const checkboxes = document.querySelectorAll('#fileTableBody input[type="checkbox"]:checked');
-
-    if (checkboxes.length === 0) {
-        alert("⚠️ Please select at least one file to delete.");
-        return;
+// Unique admin panel controller with state management
+class AdminController {
+    constructor() {
+        this.state = {
+            selectedFiles: new Set(),
+            selectedUsers: new Set(),
+            selectedRequests: new Set(),
+            currentView: 'files'
+        };
+        this.init();
     }
 
-    const confirmed = confirm("Are you sure you want to delete the selected files?");
-    if (!confirmed) return;
-
-    let deletionCount = 0;
-    let errorOccurred = false;
-    const totalCheckboxes = checkboxes.length;
-
-    checkboxes.forEach(checkbox => {
-        const fileId = checkbox.getAttribute("data-file-id");
-        const row = checkbox.closest("tr");
-
-        console.log(`Client: Deleting file with ID: ${fileId}`);
-
-        const token = localStorage.getItem("token");
-        fetch(`http://localhost:3000/admin/files/${fileId}`, {
-            method: "DELETE",
-            headers: {
-                "Authorization": `Bearer ${token}`
-            }
-        })
-        .then(response => {
-            console.log(`Client: Response received for file ID ${fileId}:`, response);
-            if (!response.ok) {
-                console.error(`Client: Unexpected status code for file ID ${fileId}:`, response.status);
-                throw new Error(`Unexpected status code: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log(`Client: Data received for file ID ${fileId}:`, data);
-            row.remove();
-            console.log(`Client: File with ID ${fileId} deleted:`, data.message);
-            deletionCount++;
-        })
-        .catch(error => {
-            console.error(`Client: Fetch error for file ID ${fileId}:`, error);
-            alert("⚠️ An error occurred while deleting the file.");
-            errorOccurred = true;
-        });
-    });
-
-    setTimeout(() => {
-        if (errorOccurred) {
-            alert("⚠️ Some errors occurred while deleting files. Please check the console.");
-        } else if (deletionCount === totalCheckboxes) {
-            alert("✅ Selected files have been deleted successfully.");
-        } else {
-            alert("✅ Some files were deleted successfully.");
-        }
-    }, 100 * totalCheckboxes);
-}
-
-
-// Function to load files from the database
-function loadFilesFromDB() {
-    const token = localStorage.getItem("token");
-    const fileTableBody = document.getElementById("fileTableBody");
-    fileTableBody.innerHTML = ""; // Clear existing files
-
-    fetch("http://localhost:3000/admin/files", {
-        method: "GET",
-        headers: {
-            "Authorization": `Bearer ${token}`
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (!data || !data.files || data.files.length === 0) {
-            fileTableBody.innerHTML =
-                `<tr><td colspan="6" style="text-align: center; color: gray;">No files uploaded</td></tr>`;
+    async init() {
+        // Check if admin
+        const userRole = localStorage.getItem('userRole');
+        if (userRole !== 'admin') {
+            window.location.href = '/login';
             return;
         }
 
-        data.files.forEach(file => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-                <td><input type="checkbox" class="file-checkbox" data-file-id="${file.id}"></td>
-                <td>${file.fileName}</td> 
-                <td>${file.uploadedAt ? new Date(file.uploadedAt).toLocaleString() : 'N/A'}</td>
-                <td>${file.size ? formatFileSize(file.size) : 'N/A'}</td>
-                <td><button onclick="viewFile('${file.id}')">👁️ View</button></td>
-                <td><button onclick="downloadFile('${file.id}')">⬇️ Download</button></td>
+        this.setupEventListeners();
+        await this.loadCurrentView();
+        this.setupRealtimeUpdates();
+        this.loadCreditRequests();
+        // Refresh every 30 seconds
+        setInterval(() => this.loadCreditRequests(), 30000);
+    }
+
+    setupEventListeners() {
+        // Add logout button handler
+        document.querySelector('.signout-btn').addEventListener('click', () => {
+            this.logout();
+        });
+    }
+
+    logout() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('username');
+        localStorage.removeItem('userRole');
+        window.location.href = '/login';
+    }
+
+    setupRealtimeUpdates() {
+        // Poll for updates every 30 seconds
+        setInterval(async () => {
+            if (document.visibilityState === 'visible') {
+                await this.loadCurrentView();
+            }
+        }, 30000);
+    }
+
+    async loadCurrentView() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/login.html';
+            return;
+        }
+
+        try {
+            switch (this.state.currentView) {
+                case 'files':
+                    await this.loadFiles();
+                    break;
+                case 'users':
+                    await this.loadUsers();
+                    break;
+                case 'notifications':
+                    await this.loadCreditRequests();
+                    break;
+            }
+        } catch (error) {
+            this.showError(`Failed to load ${this.state.currentView}: ${error.message}`);
+        }
+    }
+
+    // Unique error handling with auto-dismiss and retry option
+    showError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-notification';
+        errorDiv.innerHTML = `
+            <p>${message}</p>
+            <button onclick="adminController.loadCurrentView()">Retry</button>
+            <button onclick="this.parentElement.remove()">Dismiss</button>
+        `;
+        document.body.appendChild(errorDiv);
+        setTimeout(() => errorDiv.remove(), 5000);
+    }
+
+    // Innovative credit request handling with batch processing
+    async handleCreditRequests(action) {
+        const requests = Array.from(this.state.selectedRequests);
+        if (!requests.length) {
+            this.showError('No requests selected');
+            return;
+        }
+
+        try {
+            // Process in batches of 5 for better performance
+            const batchSize = 5;
+            for (let i = 0; i < requests.length; i += batchSize) {
+                const batch = requests.slice(i, i + batchSize);
+                await Promise.all(batch.map(id => 
+                    fetch(`/api/admin/credit-requests/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
+                        body: JSON.stringify({ status: action })
+                    })
+                ));
+            }
+            await this.loadCreditRequests();
+            this.showSuccess(`Successfully ${action} ${requests.length} requests`);
+        } catch (error) {
+            this.showError(`Failed to ${action} requests: ${error.message}`);
+        }
+    }
+
+    // Dynamic analytics visualization
+    async visualizeAnalytics(data) {
+        const canvas = document.createElement('canvas');
+        canvas.id = 'analyticsChart';
+        document.querySelector('#analytics').appendChild(canvas);
+
+        // Implement custom chart visualization here
+        // This is just a placeholder - you would add your actual chart code
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#641074';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    async loadCreditRequests() {
+        try {
+            const response = await fetch('/api/admin/credit-requests', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            
+            if (!response.ok) throw new Error('Failed to load requests');
+            
+            const requests = await response.json();
+            this.renderRequests(requests);
+        } catch (error) {
+            this.showError('Failed to load credit requests');
+            console.error(error);
+        }
+    }
+
+    renderRequests(requests) {
+        const container = document.getElementById('requests-container');
+        if (!requests || requests.length === 0) {
+            container.innerHTML = '<p>No pending credit requests</p>';
+            return;
+        }
+
+        container.innerHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Requested By</th>
+                        <th>Amount</th>
+                        <th>Request Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${requests.map(req => `
+                        <tr>
+                            <td>${req.username}</td>
+                            <td>${req.requestedCredits} credits</td>
+                            <td>${new Date(req.requestDate).toLocaleString()}</td>
+                            <td>Pending</td>
+                            <td>
+                                <button onclick="adminController.handleRequest(${req.id}, 'approved')" class="approve-btn">Approve</button>
+                                <button onclick="adminController.handleRequest(${req.id}, 'rejected')" class="reject-btn">Reject</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    }
+
+    async cleanupFiles() {
+        try {
+            const confirmCleanup = confirm('This will remove all invalid or unnamed files. Continue?');
+            if (!confirmCleanup) return;
+
+            const response = await fetch('/api/admin/cleanup', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) throw new Error('Cleanup failed');
+            
+            const result = await response.json();
+            if (result.deletedCount > 0) {
+                console.log('Deleted files:', result.deletedFiles); // For debugging
+                this.showSuccess(`Cleaned up ${result.deletedCount} problematic files`);
+            } else {
+                this.showSuccess('No invalid files found');
+            }
+            await this.loadFiles(); // Refresh the files list
+        } catch (error) {
+            this.showError(error.message);
+        }
+    }
+
+    async clearAllFiles() {
+        try {
+            const confirmClear = confirm('⚠️ Warning: This will permanently delete ALL files from the database. This action cannot be undone. Continue?');
+            if (!confirmClear) return;
+
+            const response = await fetch('/api/admin/clear-files', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) throw new Error('Database clear failed');
+            
+            const result = await response.json();
+            this.showSuccess(result.message);
+            await this.loadFiles(); // Refresh the files list
+        } catch (error) {
+            this.showError(error.message);
+        }
+    }
+
+    renderFiles(files) {
+        const tbody = document.getElementById('fileTableBody');
+        if (!files || files.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6">No files found</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = files.map((file, index) => {
+            // Clean up filename display
+            const displayName = file.filename && file.filename.includes('-') ? 
+                file.filename.split('-').pop() : 
+                file.filename;
+                
+            return `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${displayName || 'Unnamed File'}</td>
+                    <td>${file.username || 'Unknown'}</td>
+                    <td>${new Date(file.uploadDate).toLocaleString()}</td>
+                    <td>${Math.round((file.size || 0) / 1024)} KB</td>
+                    <td>
+                        <button onclick="adminController.viewFile(${file.id})">View</button>
+                        <button onclick="adminController.downloadFile(${file.id})">Download</button>
+                        <button onclick="adminController.deleteFile(${file.id})" class="delete-btn">Delete</button>
+                    </td>
+                </tr>
             `;
-            fileTableBody.appendChild(row);
-        });
-    })
-    .catch(error => {
-        console.error("Error fetching files:", error);
-        // Consider displaying a user-friendly error message on the page.
-    });
-}
-
-
-// Helper function to format file size (KB, MB, GB)
-function formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = parseInt(Math.floor(Math.log(bytes) / Math.log(k)));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-// Placeholder functions for viewing and downloading files
-function viewFile(fileId) {
-    const token = localStorage.getItem("token");
-    fetch(`http://localhost:3000/view/${fileId}`, { // Modified this line
-        method: "GET",
-        headers: {
-            "Authorization": `Bearer ${token}`,
-        },
-    })
-    .then((response) => response.text())
-    .then((text) => {
-        const newTab = window.open();
-        newTab.document.open();
-        newTab.document.write('<pre>' + text + '</pre>');
-        newTab.document.close();
-    })
-    .catch((error) => {
-        console.error("Error viewing file:", error);
-    });
-}
-
-function downloadFile(fileId) {
-    const token = localStorage.getItem("token");
-    fetch(`http://localhost:3000/download/${fileId}`, { // Modified this line
-        method: "GET",
-        headers: {
-            "Authorization": `Bearer ${token}`,
-        },
-    })
-    .then((response) => response.blob())
-    .then((blob) => {
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileId;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    })
-    .catch((error) => {
-        console.error("Error downloading file:", error);
-    });
-}
-
-// Function to toggle all checkboxes when "Select All" is clicked for users
-function toggleSelectAllUsers(selectAllCheckbox) {
-    const checkboxes = document.querySelectorAll('.user-checkbox');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = selectAllCheckbox.checked;
-    });
-}
-
-// Function to delete selected users
-
-function deleteSelectedUsers() { 
-    const checkboxes = document.querySelectorAll('.user-checkbox:checked');
-
-    if (checkboxes.length === 0) {
-        alert("⚠️ Please select at least one user to delete.");
-        return;
+        }).join('');
     }
 
-    const confirmed = confirm("Are you sure you want to delete the selected users?");
-    if (!confirmed) return;
+    async handleRequest(id, status) {
+        try {
+            const response = await fetch(`/api/admin/credit-requests/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({ status })
+            });
 
-    let deletionCount = 0;
-    let errorOccurred = false;
-    const totalCheckboxes = checkboxes.length;
-    const token = localStorage.getItem("token");
+            if (!response.ok) throw new Error('Failed to update request');
 
-    const deleteUser = (userId, row) => {
-        return fetch(`http://localhost:3000/admin/users/${userId}`, {
-            method: "DELETE",
-            headers: {
-                "Authorization": `Bearer ${token}`
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Unexpected status code: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log(`Client: User with ID ${userId} deleted:`, data.message);
-            deletionCount++;
-        })
-        .catch(error => {
-            console.error(`Client: Fetch error for user ID ${userId}:`, error);
-            errorOccurred = true;
-        });
-    };
+            this.showSuccess(`Request ${status} successfully`);
+            await this.loadCreditRequests(); // Refresh the list
+        } catch (error) {
+            this.showError(error.message);
+        }
+    }
 
-    const deletePromises = Array.from(checkboxes).map(checkbox => {
-        const userId = checkbox.getAttribute("data-user-id");
-        const row = checkbox.closest("tr");
-        return deleteUser(userId, row);
-    });
-
-    Promise.allSettled(deletePromises).then(() => {
-        if (errorOccurred) {
-            alert("⚠️ Some errors occurred while deleting users. Please check the console.");
+    toggleRequest(checkbox) {
+        if (checkbox.checked) {
+            this.state.selectedRequests.add(checkbox.value);
         } else {
-            alert("✅ Selected users have been deleted successfully.");
+            this.state.selectedRequests.delete(checkbox.value);
         }
-        window.location.reload(); // Reload page to update user list
-    });
-}
+    }
 
+    showSuccess(message) {
+        const successDiv = document.createElement('div');
+        successDiv.className = 'success-notification';
+        successDiv.textContent = message;
+        document.body.appendChild(successDiv);
+        setTimeout(() => successDiv.remove(), 3000);
+    }
 
+    switchView(viewName) {    
+        this.state.currentView = viewName;
+        this.loadCurrentView();
 
-// Function to load users from the database
-function loadUsersFromDB() {
-    const token = localStorage.getItem("token");
-    const userTableBody = document.getElementById("userTableBody");
-    userTableBody.innerHTML = ""; // Clear existing users
+        // Hide all sections
+        document.querySelectorAll('.section-content').forEach(section => {
+            section.classList.remove('active');
+        });
+        
+        // Show selected section
+        document.getElementById(viewName).classList.add('active');
+        
+        // Update navigation state
+        document.querySelectorAll('.admin-navbar span').forEach(span => {
+            span.classList.remove('active');
+        });
+        document.querySelector(`[onclick="adminController.switchView('${viewName}')"]`).classList.add('active');
+    }
 
-    fetch("http://localhost:3000/admin/users", {
-        method: "GET",
-        headers: {
-            "Authorization": `Bearer ${token}`
+    async loadFiles() {
+        try {
+            const response = await fetch('/api/admin/files', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            
+            if (!response.ok) throw new Error('Failed to load files');
+            
+            const files = await response.json();
+            this.renderFiles(files);
+        } catch (error) {
+            this.showError(error.message);
         }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.users.length === 0) {
-            userTableBody.innerHTML = 
-                `<tr><td colspan="5" style="text-align: center; color: gray;">No users available</td></tr>`;
-            return;
-        }
+    }
 
-        const uniqueUsers = removeDuplicateUsers(data.users);
-        uniqueUsers.forEach(user => {
-            const row = document.createElement("tr");
-            row.innerHTML = 
-                `<td><input type="checkbox" class="user-checkbox" data-user-id="${user.id}"></td>
+    async loadUsers() {
+        try {
+            const response = await fetch('/api/admin/users', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            
+            if (!response.ok) throw new Error('Failed to load users');
+            
+            const users = await response.json();
+            this.renderUsers(users);
+        } catch (error) {
+            this.showError(error.message);
+        }
+    }
+
+    renderUsers(users) {
+        const tbody = document.getElementById('userTableBody');
+        tbody.innerHTML = users.map((user, index) => `
+            <tr>
+                <td>${index + 1}</td>
                 <td>${user.username}</td>
                 <td>${user.role}</td>
-                <td>${user.filesUploaded}</td>
-                <td>${user.credits}</td>`;
-            userTableBody.appendChild(row);
-        });
-    })
-    .catch(error => console.error("Error fetching users:", error));
-}
-
-// Function to remove duplicate users based on user ID
-function removeDuplicateUsers(users) {
-    const uniqueUsers = [];
-    const userIds = new Set();
-
-    users.forEach(user => {
-        if (!userIds.has(user.id)) {
-            uniqueUsers.push(user);
-            userIds.add(user.id);
-        }
-    });
-
-    return uniqueUsers;
-}
-
-// Function to toggle all checkboxes when "Select All" is clicked for credit requests
-function toggleSelectAllRequests(selectAllCheckbox) {
-    const checkboxes = document.querySelectorAll('.request-checkbox');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = selectAllCheckbox.checked;
-    });
-}
-
-// Function to accept selected credit requests
-function acceptSelectedRequests() {
-    const checkboxes = document.querySelectorAll('.request-checkbox:checked');
-    
-    if (checkboxes.length === 0) {
-        alert("⚠️ Please select at least one request to accept.");
-        return;
-    }
-
-    const confirmed = confirm("Are you sure you want to accept the selected credit requests?");
-    if (!confirmed) return;
-
-    let acceptedCount = 0;
-    let errorOccurred = false;
-    const token = localStorage.getItem("token");
-
-    const acceptRequest = (requestId, row) => {
-        return fetch(`http://localhost:3000/admin/credit-requests/${requestId}/accept`, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${token}`
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Unexpected status code: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log(`Client: Credit request ${requestId} accepted:`, data.message);
-            acceptedCount++;
-            row.remove(); // Remove the row from the table upon successful acceptance
-        })
-        .catch(error => {
-            console.error(`Client: Fetch error for credit request ID ${requestId}:`, error);
-            errorOccurred = true;
-        });
-    };
-
-    const acceptPromises = Array.from(checkboxes).map(checkbox => {
-        const requestId = checkbox.getAttribute("data-request-id");
-        const row = checkbox.closest("tr");
-        return acceptRequest(requestId, row);
-    });
-
-    Promise.allSettled(acceptPromises).then(() => {
-        if (errorOccurred) {
-            alert("⚠️ Some errors occurred while accepting credit requests. Please check the console.");
-        } else {
-            alert("✅ Selected credit requests have been accepted.");
-        }
-    });
-}
-
-// Function to reject selected credit requests
-function rejectSelectedRequests() {
-    const checkboxes = document.querySelectorAll('.request-checkbox:checked');
-    
-    if (checkboxes.length === 0) {
-        alert("⚠️ Please select at least one request to reject.");
-        return;
-    }
-
-    const confirmed = confirm("Are you sure you want to reject the selected credit requests?");
-    if (!confirmed) return;
-
-    let rejectedCount = 0;
-    let errorOccurred = false;
-    const token = localStorage.getItem("token");
-
-    const rejectRequest = (requestId, row) => {
-        return fetch(`http://localhost:3000/admin/credit-requests/${requestId}/reject`, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${token}`
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Unexpected status code: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log(`Client: Credit request ${requestId} rejected:`, data.message);
-            rejectedCount++;
-            row.remove(); // Remove the row from the table upon successful rejection
-        })
-        .catch(error => {
-            console.error(`Client: Fetch error for credit request ID ${requestId}:`, error);
-            errorOccurred = true;
-        });
-    };
-
-    const rejectPromises = Array.from(checkboxes).map(checkbox => {
-        const requestId = checkbox.getAttribute("data-request-id");
-        const row = checkbox.closest("tr");
-        return rejectRequest(requestId, row);
-    });
-
-    Promise.allSettled(rejectPromises).then(() => {
-        if (errorOccurred) {
-            alert("⚠️ Some errors occurred while rejecting credit requests. Please check the console.");
-        } else {
-            alert("✅ Selected credit requests have been rejected.");
-        }
-    });
-}
-
-// Placeholder functions for accepting and rejecting individual requests
-function acceptRequest(requestId) {
-    const token = localStorage.getItem("token");
-    fetch(`http://localhost:3000/admin/credit-requests/${requestId}/accept`, {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${token}`
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`Unexpected status code: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        alert(data.message);
-        loadRequestsFromDB(); // Reload credit requests after accepting
-    })
-    .catch(error => {
-        console.error("Error accepting credit request:", error);
-        alert("⚠️ An error occurred while accepting the credit request.");
-    });
-}
-
-function rejectRequest(requestId) {
-    const token = localStorage.getItem("token");
-    fetch(`http://localhost:3000/admin/credit-requests/${requestId}/reject`, {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${token}`
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`Unexpected status code: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        alert(data.message);
-        loadRequestsFromDB(); // Reload credit requests after rejecting
-    })
-    .catch(error => {
-        console.error("Error rejecting credit request:", error);
-        alert("⚠️ An error occurred while rejecting the credit request.");
-    });
-}
-
-// Function to load credit requests from the database
-function loadRequestsFromDB() {
-    const tableBody = document.getElementById("notificationTableBody");
-    if (!tableBody) {
-        console.error("notificationTableBody element not found in DOM.");
-        return;
-    }
-    tableBody.innerHTML = "";
-
-    const token = localStorage.getItem("token");
-    fetch("http://localhost:3000/admin/credit-requests", {
-        method: "GET",
-        headers: {
-            "Authorization": `Bearer ${token}`
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log("Credit requests data:", data);
-        
-        // Filter to show only pending requests
-        const pendingRequests = data.requests.filter(r => r.status === 'pending');
-        
-        if (!pendingRequests || pendingRequests.length === 0) {
-            tableBody.innerHTML = 
-                `<tr><td colspan="4" style="text-align: center; color: gray;">No pending credit requests</td></tr>`;
-            return;
-        }
-
-        pendingRequests.forEach(request => {
-            const row = document.createElement("tr");
-            row.innerHTML = 
-                `<td><input type="checkbox" class="request-checkbox" data-request-id="${request.id}"></td>
-                <td>${request.username}</td>
-                <td>${request.creditsRequested}</td>
+                <td>${user.documentsCount || 0}</td>
+                <td>${user.credits}</td>
+                <td>${user.status}</td>
                 <td>
-                    <button class="accept-btn" onclick="acceptRequest('${request.id}')">✅ Accept</button>
-                    <button class="reject-btn" onclick="rejectRequest('${request.id}')">❌ Reject</button>
-                </td>`;
-            tableBody.appendChild(row);
+                    <button onclick="adminController.addCredits(${user.id})" class="add-credits-btn">Add Credits</button>
+                    ${user.role !== 'admin' ? `
+                        <button onclick="adminController.toggleUserStatus(${user.id})" class="toggle-status-btn">
+                            ${user.status === 'Active' ? 'Disable' : 'Enable'}
+                        </button>
+                    ` : ''}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async addCredits(userId) {
+        const credits = prompt('Enter number of credits to add:');
+        if (!credits || isNaN(credits)) return;
+
+        try {
+            const response = await fetch(`/api/admin/users/${userId}/credits`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({ credits: parseInt(credits) })
+            });
+
+            if (!response.ok) throw new Error('Failed to add credits');
+            
+            this.showSuccess('Credits added successfully');
+            await this.loadUsers();
+        } catch (error) {
+            this.showError(error.message);
+        }
+    }
+
+    async handleCreditRequest(id, status) {
+        try {
+            const response = await fetch(`/api/admin/credit-requests/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({ status })
+            });
+
+            if (!response.ok) throw new Error('Failed to update request');
+
+            this.showSuccess(`Request ${status} successfully`);
+            await this.loadCreditRequests(); // Refresh the list
+        } catch (error) {
+            this.showError(error.message);
+        }
+    }
+
+    showSectionTabs() {
+        const tabs = document.querySelectorAll('.admin-navbar span');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.switchView(tab.getAttribute('data-view'));
+            });
         });
-    })
-    .catch(error => {
-        console.error("Error fetching credit requests:", error);
-        tableBody.innerHTML = 
-            `<tr><td colspan="4" style="text-align: center; color: red;">Error loading credit requests</td></tr>`;
-    });
+    }
+
+    async viewFile(id) {
+        try {
+            const response = await fetch(`/api/admin/files/${id}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            
+            if (!response.ok) throw new Error('Failed to load file');
+            const file = await response.json();
+            
+            const modal = document.createElement('div');
+            modal.className = 'view-modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>${file.filename}</h3>
+                        <button onclick="this.closest('.view-modal').remove()">✕</button>
+                    </div>
+                    <div class="modal-body">
+                        <pre>${file.content}</pre>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        } catch (error) {
+            this.showError(error.message);
+        }
+    }
+
+    async downloadFile(id) {
+        try {
+            const response = await fetch(`/api/admin/files/${id}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            
+            if (!response.ok) throw new Error('Failed to load file');
+            const file = await response.json();
+            
+            const blob = new Blob([file.content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = file.filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            this.showError(error.message);
+        }
+    }
+
+    async deleteFile(id) {
+        if (!confirm('Are you sure you want to delete this file?')) return;
+
+        try {
+            const response = await fetch(`/api/admin/files/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            
+            if (!response.ok) throw new Error('Failed to delete file');
+            
+            this.showSuccess('File deleted successfully');
+            await this.loadFiles();
+        } catch (error) {
+            this.showError(error.message);
+        }
+    }
 }
 
-// Load files when page loads
-document.addEventListener("DOMContentLoaded", () => {
-    // Load initial section based on URL hash or default to files
-    const initialSection = window.location.hash.slice(1) || 'files';
-    showSection(initialSection);
-});
+// Initialize controller
+const adminController = new AdminController();
+
+// Export for testing
+if (typeof module !== 'undefined') {
+    module.exports = AdminController;
+}

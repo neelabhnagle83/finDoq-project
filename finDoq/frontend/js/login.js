@@ -1,56 +1,41 @@
-document.addEventListener("DOMContentLoaded", function () {
-    const loginForm = document.getElementById("login-form");
-    const passwordInput = document.getElementById("password");
-    const togglePassword = document.getElementById("togglePassword");
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    try {
+        const response = await fetch('http://localhost:3000/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value
+            })
+        });
 
-    // 🔥 Toggle password visibility
-    togglePassword.addEventListener("click", function () {
-        if (passwordInput.type === "password") {
-            passwordInput.type = "text";
-            togglePassword.src = "../assets/icons/mdi_show.png"; // Change icon
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Login failed');
+        }
+
+        const data = await response.json();
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('userId', data.userId);
+        localStorage.setItem('username', data.username);
+        localStorage.setItem('userRole', data.role);
+
+        // Redirect based on role
+        if (data.role === 'admin') {
+            window.location.href = '/admin';
         } else {
-            passwordInput.type = "password";
-            togglePassword.src = "../assets/icons/mdi_hide.png"; // Change icon
+            window.location.href = '/dashboard';
         }
-    });
+    } catch (error) {
+        alert('Login failed: ' + error.message);
+    }
+});
 
-    // 🔥 Login form submission
-    loginForm.addEventListener("submit", async function (event) {
-        event.preventDefault();
-
-        const username = document.getElementById("username").value;
-        const password = passwordInput.value;
-
-        try {
-            const response = await fetch("http://localhost:3000/auth/login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password }),
-            });
-
-            const result = await response.json();
-
-            if (response.ok) {
-                alert("✅ Login successful!");
-
-                // ✅ Store JWT Token & Username in Local Storage
-                localStorage.setItem("token", result.token);
-                localStorage.setItem("username", username);
-
-                // ✅ Redirect based on role
-                if (result.role === "admin") {
-                    localStorage.setItem("isAdmin", true); // Store admin session flag
-                    window.location.href = "admin.html"; // Redirect Admins
-                } else {
-                    localStorage.setItem("isAdmin", false);
-                    window.location.href = "dashboard.html"; // Redirect Users
-                }
-            } else {
-                alert("❌ " + (result.error || "Invalid credentials!"));
-            }
-        } catch (error) {
-            console.error("❌ Login Error:", error);
-            alert("❌ Login failed. Try again later.");
-        }
-    });
+// Password toggle functionality
+document.getElementById('togglePassword').addEventListener('click', function() {
+    const password = document.getElementById('password');
+    password.type = password.type === 'password' ? 'text' : 'password';
+    this.src = password.type === 'password' ? '../assets/icons/mdi_hide.png' : '../assets/icons/mdi_show.png';
 });

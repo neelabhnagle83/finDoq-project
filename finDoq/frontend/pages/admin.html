@@ -3,78 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel</title>
+    <title>FinDoq Admin</title>
     <link rel="stylesheet" href="../css/admin.css">
 </head>
 <body>
-    <header>
-        <div class="logo">FinDoq</div>
+    <div class="admin-container">
         <nav class="admin-navbar">
-            <span onclick="showSection('files')" class="active">View Files</span>
-            <span onclick="showSection('users')">View Users</span>
-            <span onclick="showSection('notifications')">User Requests</span>
+            <span onclick="adminController.switchView('notifications')" class="active">Credit Requests</span>
+            <span onclick="adminController.switchView('users')">Users</span>
+            <span onclick="adminController.switchView('files')">Files</span>
+            <button class="signout-btn">Sign Out</button>
         </nav>
-        <div class="user-actions"> 
-            <button class="signout-btn" onclick="logout()">Sign Out</button>
-        </div>
-    </header>
 
-    <div id="files" class="section-content active">
-        <h2>Uploaded Files</h2>
-        <div class="scrollable-content"> <table>
-                <thead>
-                    <tr>
-                        <th><input type="checkbox" id="selectAll" onclick="toggleSelectAllFiles(this)"></th>
-                        <th>File Name</th>
-                        <th>Time Uploaded</th>
-                        <th>File Size</th> 
-                        <th>View</th>
-                        <th>Download</th>
-                    </tr>
-                </thead>
-                <tbody id="fileTableBody">
-                    </tbody>
-            </table>
-        </div> <button class="delete-btn" onclick="deleteSelectedFiles()">Delete Files</button>
-    </div>
-    
-    <div id="users" class="section-content">
-        <h2>Manage Users</h2>
-        <div class="scrollable-content"> <table>
-                <thead>
-                    <tr>
-                        <th><input type="checkbox" id="selectAllUsers" onclick="toggleSelectAllUsers(this)"></th>
-                        <th>Username</th>
-                        <th>Role</th>
-                        <th>Total Files Uploaded</th>
-                        <th>Credits</th>
-                    </tr>
-                </thead>
-                <tbody id="userTableBody">
-                    </tbody>
-            </table>
-        </div> <button class="delete-btn" onclick="deleteSelectedUsers()">Delete User</button>
-    </div>
+        <!-- Credit Requests Section -->
+        <section id="notifications" class="section-content active">
+            <h2>Pending Credit Requests</h2>
+            <div class="table-container" id="requests-container">
+                <!-- Table will be dynamically populated -->
+            </div>
+        </section>
 
-    <div id="notifications" class="section-content">
-        <h2>Credit Requests</h2>
-        <div class="scrollable-content"> <table>
-                <thead>
-                    <tr>
-                        <th><input type="checkbox" id="selectAllRequests" onclick="toggleSelectAllRequests(this)"></th>
-                        <!-- Changed header from "User ID" to "Username" -->
-                        <th>Username</th>
-                        <th>Requested Credits</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody id="notificationTableBody">
-                    </tbody>
-            </table>
-        </div> <button class="accept-selected-btn" onclick="acceptSelectedRequests()">Accept Selected</button>
-        <button class="reject-selected-btn" onclick="rejectSelectedRequests()">Reject Selected</button>
-    </div>
+        <!-- Users Section -->
+        <section id="users" class="section-content">
+            <h2>User Management</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Username</th>
+                            <th>Role</th>
+                            <th>Documents</th>
+                            <th>Credits</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userTableBody"></tbody>
+                </table>
+            </div>
+        </section>
 
+        <!-- Files Section -->
+        <section id="files" class="section-content">
+            <h2>Uploaded Files</h2>
+            <button onclick="adminController.clearAllFiles()" class="cleanup-btn">Clear All Files</button>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Filename</th>
+                            <th>Uploaded By</th>
+                            <th>Upload Date</th>
+                            <th>Size</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fileTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
     <script src="../js/admin.js"></script>
 </body>
 </html>

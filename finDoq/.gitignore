@@ -1,0 +1,15 @@
+# Ignore duplicate folders
+/frontend-old/
+/frontend-backup/
+/frontend-*/
+
+# IDE files
+.vscode/
+.idea/
+
+# Dependencies
+/node_modules/
+
+# Environment files
+.env
+.env.local

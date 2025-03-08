@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FinDoq - User Dashboard</title>
     <link rel="stylesheet" href="../css/dashboard.css">
+    <script src="../js/dashboard.js"></script>
 </head>
 <body>
     <!-- ✅ Header Section -->
@@ -36,10 +37,17 @@
                 <img src="../assets/images/Cloud character devours paper files.png" alt="Upload Icon">
                 <p>Drag and Drop your file here</p>
                 <p class="or-text">or</p>
-                <button class="browse-btn">Browse</button>
-                <input type="file" id="fileInput" accept=".txt">
+                <button class="browse-btn" id="browseBtn">Browse</button>
+                <input type="file" id="fileInput" accept=".txt" style="display: none;">
             </div>
-            <button class="scan-btn">Start scanning</button> <!-- No credit deduction here -->
+            <div class="scan-actions" style="display: none;">
+                <button class="upload-btn" id="uploadBtn">Upload Only</button>
+                <button class="scan-btn" id="scanBtn">Scan for Similarities</button>
+            </div>
+            <div id="resultsContainer" class="results-container" style="display: none;">
+                <h3>Scan Results</h3>
+                <div id="similarityGraph" class="similarity-graph"></div>
+            </div>
         </section>
 
         <!-- Loading Bar -->
@@ -93,7 +101,7 @@
             localStorage.removeItem("token");
             localStorage.removeItem("username");
             alert("✅ Logged out successfully!");
-            window.location.href = "login.html";
+            window.location.href = "login"; // Remove .html extension
         }
 
         // Validate the credit input to ensure it is between 0 and 10
