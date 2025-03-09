@@ -9,45 +9,86 @@ class DocumentMatcher {
     }
 
     static calculateSimilarity(doc1, doc2) {
-        if (!doc1 || !doc2) return 0;
+        // Normalize the texts
+        const text1 = this.normalizeText(doc1);
+        const text2 = this.normalizeText(doc2);
 
-        // Normalize content
-        const content1 = doc1.toLowerCase().trim();
-        const content2 = doc2.toLowerCase().trim();
+        // For very short texts, use a more precise comparison
+        if (text1.length < 100 || text2.length < 100) {
+            return this.calculateExactSimilarity(text1, text2);
+        }
 
-        // Handle exact matches first
-        if (content1 === content2) return 100;
+        // Create word sets for comparison
+        const words1 = new Set(text1.split(/\s+/).filter(w => w.length > 3));
+        const words2 = new Set(text2.split(/\s+/).filter(w => w.length > 3));
 
-        // Split into words and filter empty strings
-        const words1 = content1.split(/\s+/).filter(w => w.length > 0);
-        const words2 = content2.split(/\s+/).filter(w => w.length > 0);
-
-        if (words1.length === 0 || words2.length === 0) return 0;
-
-        // Get unique words
-        const set1 = new Set(words1);
-        const set2 = new Set(words2);
-
-        // Calculate intersection
-        const intersection = new Set([...set1].filter(x => set2.has(x)));
-
-        // Calculate similarity score with size bias
-        const smallerSize = Math.min(set1.size, set2.size);
-        const largerSize = Math.max(set1.size, set2.size);
-        const matchScore = (intersection.size / smallerSize) * 100;
-
-        // Apply size difference penalty
-        const sizePenalty = smallerSize / largerSize;
-        const finalScore = Math.round(matchScore * sizePenalty);
-
-        return Math.min(Math.max(finalScore, 0), 100);
+        // Find intersection of word sets
+        const intersection = new Set([...words1].filter(x => words2.has(x)));
+        
+        // Calculate similarity using Jaccard index with length adjustment
+        const smallerSize = Math.min(words1.size, words2.size);
+        const largerSize = Math.max(words1.size, words2.size);
+        
+        // Apply length scaling to avoid small documents getting artificially high scores
+        const lengthScalingFactor = Math.pow(smallerSize / Math.max(largerSize, 1), 0.3);
+        
+        // Calculate base similarity
+        let similarity = 0;
+        if (smallerSize > 0) {
+            // Calculate Jaccard similarity
+            similarity = (intersection.size / largerSize) * 100;
+            // Apply length scaling factor
+            similarity = similarity * lengthScalingFactor;
+        }
+        
+        // Ensure the result is between 0-100
+        return Math.min(Math.max(Math.round(similarity), 0), 100);
     }
 
+    static calculateExactSimilarity(text1, text2) {
+        // For short texts, use Levenshtein distance
+        const distance = this.levenshteinDistance(text1, text2);
+        const maxLength = Math.max(text1.length, text2.length);
+        
+        if (maxLength === 0) return 100; // Both empty strings
+        
+        // Convert distance to similarity percentage
+        const similarity = 100 * (1 - distance / maxLength);
+        return Math.round(similarity);
+    }
+    
+    static levenshteinDistance(s1, s2) {
+        const len1 = s1.length;
+        const len2 = s2.length;
+        
+        // Matrix to store distances
+        let matrix = Array(len1 + 1).fill().map(() => Array(len2 + 1).fill(0));
+        
+        // Initialize first row and column
+        for (let i = 0; i <= len1; i++) matrix[i][0] = i;
+        for (let j = 0; j <= len2; j++) matrix[0][j] = j;
+        
+        // Fill the matrix
+        for (let i = 1; i <= len1; i++) {
+            for (let j = 1; j <= len2; j++) {
+                const cost = s1[i-1] === s2[j-1] ? 0 : 1;
+                matrix[i][j] = Math.min(
+                    matrix[i-1][j] + 1,       // deletion
+                    matrix[i][j-1] + 1,       // insertion
+                    matrix[i-1][j-1] + cost   // substitution
+                );
+            }
+        }
+        
+        return matrix[len1][len2];
+    }
+    
     static normalizeText(text) {
-        return text.toLowerCase()
+        return text
+            .toLowerCase()
             .replace(/[^\w\s]/g, '') // Remove punctuation
             .replace(/\s+/g, ' ')    // Normalize whitespace
-            .trim();
+            .trim();                 // Remove leading/trailing whitespace
     }
 
     static calculateWordSimilarity(words1, words2) {

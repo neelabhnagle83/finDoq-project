@@ -1,0 +1,26 @@
+.upload-btn, .scan-btn, .browse-btn {
+    transition: all 0.3s ease;
+}
+
+.upload-box {
+    transition: all 0.3s ease;
+}
+
+.notification-info, .notification-error, .notification-success {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.credit-update {
+    animation: pulse 0.5s ease-in-out;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}

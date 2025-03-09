@@ -1,20 +1,22 @@
 const sqlite3 = require('sqlite3').verbose();
+const bcrypt = require('bcryptjs');
 const path = require('path');
+const fs = require('fs');
 
-const dbPath = path.resolve(__dirname, '../data/findoq.db');
+// Create data directory if it doesn't exist
+const dataDir = path.join(__dirname, '..', 'data');
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir);
+}
 
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('Error connecting to database:', err);
-    } else {
-        console.log('Connected to SQLite database');
-        initializeTables();
-    }
-});
+// Use findOq.db in the data folder
+const db = new sqlite3.Database(path.join(dataDir, 'findOq.db'));
 
 function initializeTables() {
     db.serialize(() => {
-        // Users table
+        console.log("Initializing database tables...");
+        
+        // Create users table if it doesn't exist
         db.run(`CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
@@ -24,17 +26,34 @@ function initializeTables() {
             lastCreditReset TEXT
         )`);
 
-        // Documents table
+        // Create documents table with contentHash column
         db.run(`CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             userId INTEGER,
             filename TEXT,
             content TEXT,
+            contentHash TEXT,
             uploadDate TEXT,
             FOREIGN KEY(userId) REFERENCES users(id)
-        )`);
+        )`, (err) => {
+            if (err) {
+                console.error("Error creating documents table:", err);
+            } else {
+                console.log("Documents table initialized or already exists");
+                // Ensure contentHash column exists by attempting to add it
+                // SQLite will ignore this if the column already exists
+                db.run("ALTER TABLE documents ADD COLUMN contentHash TEXT", (alterErr) => {
+                    // Ignore error if column already exists (it will say "duplicate column name")
+                    if (alterErr && !alterErr.message.includes('duplicate column name')) {
+                        console.error("Error adding contentHash column:", alterErr);
+                    } else {
+                        console.log("contentHash column exists or was added successfully");
+                    }
+                });
+            }
+        });
 
-        // Credit requests table
+        // Create credit_requests table
         db.run(`CREATE TABLE IF NOT EXISTS credit_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             userId INTEGER,
@@ -44,43 +63,16 @@ function initializeTables() {
             FOREIGN KEY(userId) REFERENCES users(id)
         )`);
 
-        // Create admin user if not exists
-        const bcrypt = require('bcryptjs');
+        // Create admin user if it doesn't exist
         const hashedPassword = bcrypt.hashSync('admin123', 10);
-        
         db.get('SELECT * FROM users WHERE username = ?', ['admin'], (err, user) => {
-            if (err) console.error('Error checking admin:', err);
             if (!user) {
-                db.run(
-                    'INSERT INTO users (username, password, role, credits) VALUES (?, ?, ?, ?)',
-                    ['admin', hashedPassword, 'admin', 999],
-                    (err) => {
-                        if (err) console.error('Error creating admin:', err);
-                        else console.log('Admin user created successfully');
-                    }
-                );
-            }
-        });
-
-        // Add some test documents if needed
-        db.get('SELECT COUNT(*) as count FROM documents', (err, result) => {
-            if (err) console.error('Error checking documents:', err);
-            if (result.count === 0) {
-                const sampleDocs = [
-                    { content: 'Sample document 1 for testing purposes.', filename: 'test1.txt' },
-                    { content: 'Another sample document with different content.', filename: 'test2.txt' }
-                ];
-                
-                sampleDocs.forEach(doc => {
-                    db.run(
-                        'INSERT INTO documents (userId, filename, content, uploadDate) VALUES (?, ?, ?, datetime("now"))',
-                        [1, doc.filename, doc.content]
-                    );
-                });
-                console.log('Sample documents created');
+                db.run('INSERT INTO users (username, password, role, credits) VALUES (?, ?, ?, ?)',
+                    ['admin', hashedPassword, 'admin', 999]);
             }
         });
     });
 }
 
-module.exports = db;
+// Export the database connection and initialization function
+module.exports = { db, initializeTables };

@@ -5,7 +5,7 @@ class AdminController {
             selectedFiles: new Set(),
             selectedUsers: new Set(),
             selectedRequests: new Set(),
-            currentView: 'files'
+            currentView: 'notifications'
         };
         this.init();
     }
@@ -118,19 +118,6 @@ class AdminController {
         }
     }
 
-    // Dynamic analytics visualization
-    async visualizeAnalytics(data) {
-        const canvas = document.createElement('canvas');
-        canvas.id = 'analyticsChart';
-        document.querySelector('#analytics').appendChild(canvas);
-
-        // Implement custom chart visualization here
-        // This is just a placeholder - you would add your actual chart code
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#641074';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-
     async loadCreditRequests() {
         try {
             const response = await fetch('/api/admin/credit-requests', {
@@ -183,34 +170,6 @@ class AdminController {
         `;
     }
 
-    async cleanupFiles() {
-        try {
-            const confirmCleanup = confirm('This will remove all invalid or unnamed files. Continue?');
-            if (!confirmCleanup) return;
-
-            const response = await fetch('/api/admin/cleanup', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) throw new Error('Cleanup failed');
-            
-            const result = await response.json();
-            if (result.deletedCount > 0) {
-                console.log('Deleted files:', result.deletedFiles); // For debugging
-                this.showSuccess(`Cleaned up ${result.deletedCount} problematic files`);
-            } else {
-                this.showSuccess('No invalid files found');
-            }
-            await this.loadFiles(); // Refresh the files list
-        } catch (error) {
-            this.showError(error.message);
-        }
-    }
-
     async clearAllFiles() {
         try {
             const confirmClear = confirm('⚠️ Warning: This will permanently delete ALL files from the database. This action cannot be undone. Continue?');
@@ -253,7 +212,7 @@ class AdminController {
                     <td>${displayName || 'Unnamed File'}</td>
                     <td>${file.username || 'Unknown'}</td>
                     <td>${new Date(file.uploadDate).toLocaleString()}</td>
-                    <td>${Math.round((file.size || 0) / 1024)} KB</td>
+                    <td>${Math.round((file.content?.length || 0) / 1024)} KB</td>
                     <td>
                         <button onclick="adminController.viewFile(${file.id})">View</button>
                         <button onclick="adminController.downloadFile(${file.id})">Download</button>
@@ -392,35 +351,6 @@ class AdminController {
         } catch (error) {
             this.showError(error.message);
         }
-    }
-
-    async handleCreditRequest(id, status) {
-        try {
-            const response = await fetch(`/api/admin/credit-requests/${id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({ status })
-            });
-
-            if (!response.ok) throw new Error('Failed to update request');
-
-            this.showSuccess(`Request ${status} successfully`);
-            await this.loadCreditRequests(); // Refresh the list
-        } catch (error) {
-            this.showError(error.message);
-        }
-    }
-
-    showSectionTabs() {
-        const tabs = document.querySelectorAll('.admin-navbar span');
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                this.switchView(tab.getAttribute('data-view'));
-            });
-        });
     }
 
     async viewFile(id) {

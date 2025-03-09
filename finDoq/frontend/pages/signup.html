@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Signup | FinDoq</title>
+    <title>Sign Up | FinDoq</title>
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,57 +12,54 @@
 
     <!-- Stylesheets -->
     <link rel="stylesheet" href="../css/global.css">
-    <link rel="stylesheet" href="../css/signup.css"> <!-- New CSS for signup page -->
-
+    <link rel="stylesheet" href="../css/login.css"> <!-- Reusing login styles -->
 </head>
 <body>
-
     <!-- Signup Container -->
-    <div class="signup-container">
-        
+    <div class="login-container">
         <!-- Left Side: Image & Text -->
-        <div class="signup-left">
-            <img src="../assets/images/Futuristic car abducting a woman.png" alt="Welcome Illustration">
-            <h2>Join Now</h2>
-            <p>Step into the next era of innovation. Sign up now and explore endless possibilities!</p>
+        <div class="login-left">
+            <img src="../assets/images/Sign up.png" alt="Welcome Illustration">
+            <h2>Join FinDoq!</h2>
+            <p>Create an account to start scanning and comparing documents.</p>
         </div>
 
         <!-- Right Side: Signup Form -->
-        <div class="signup-right">
-
-            <div class="signup-heading">
-                <h1>Create account</h1>
-                <p>Enter your details</p>
+        <div class="login-right">
+            <div class="login-heading">
+                <h1>Sign Up</h1>
+                <p>Create your FinDoq account</p>
             </div>
 
             <form id="signup-form">
                 <div class="input-group">
                     <label for="username">Username</label>
-                    <input type="text" id="username" placeholder="Enter your username" required>
+                    <input type="text" id="username" placeholder="Choose a username" required>
                 </div>
 
                 <div class="input-group password-container">
                     <label for="signup-password">Password</label>
-                    <input type="password" id="signup-password" placeholder="Enter your password" required>
+                    <input type="password" id="signup-password" placeholder="Create a password" required>
                     <img id="toggleSignupPassword" class="eye-icon" src="../assets/icons/mdi_hide.png" alt="Toggle Password">
                 </div>
 
-                <button class="signuppg-btn" type="submit">Create account</button>
+                <button class="loginpg-btn" type="submit">Create Account</button>
                 
-                <div class="sup-bottom">
-                    <p>or sign up with</p>
-                    <div class="social-signup">
+                <div class="log-bottom">
+                    <p>or signup with</p>
+                    <div class="social-login">
                         <button class="google"><img src="../assets/icons/google.png" alt="Google"></button>
                         <button class="github"><img src="../assets/icons/github.png" alt="GitHub"></button>
                         <button class="linkedin"><img src="../assets/icons/microsoft.png" alt="LinkedIn"></button>
                     </div>
 
-                    <p class="p-login">Have an account? <a href="login.html">Login</a></p>
+                    <p class="p-signup">Already have an account? <a href="./login.html">Login</a></p>
                 </div>
             </form>
         </div>
     </div>
 
-    <script src="../js/signup.js"></script> <!-- External JavaScript -->
+    <script src="../js/utils.js"></script>
+    <script src="../js/signup.js"></script>
 </body>
 </html>

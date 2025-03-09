@@ -3,130 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FinDoq - User Dashboard</title>
+    <title>Dashboard | FinDoq</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@100..900&family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="../css/global.css">
     <link rel="stylesheet" href="../css/dashboard.css">
-    <script src="../js/dashboard.js"></script>
+    <link rel="stylesheet" href="../css/modal.css">
+    <link rel="stylesheet" href="../css/notifications.css">
 </head>
 <body>
-    <!-- ✅ Header Section -->
+    <!-- Header -->
     <header>
         <div class="logo">FinDoq</div>
         <nav>
             <ul>
-                <li><a href="#">How it works?</a></li>
-                <li><a href="#">Contact us</a></li>
-                <li><a href="#">About us</a></li>
+                <li><a href="#" class="active">Dashboard</a></li>
+                <li><a href="#">Documents</a></li>
+                <li><a href="#">Settings</a></li>
             </ul>
         </nav>
-        <div class="user-actions"> 
-            <button class="signout-btn" onclick="logout()">Sign Out</button>
+        <div class="user-actions">
+            <button class="credits-btn">
+                Credits
+                <span class="credits-count" id="credits-display">0</span>
+            </button>
+            <button class="signout-btn" id="logout-btn">Sign Out</button>
         </div>
     </header>
 
-    <!-- ✅ File Upload Section -->
-    <main>
-        <div class="credits-container">
-            <button class="credits-btn">
-                Credits <span class="credits-count">Loading...</span>
-            </button>
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Welcome Section -->
+        <div class="welcome-section">
+            <h2>Welcome, <span id="username-display">User</span></h2>
+            <button id="request-credits-btn" class="request-btn">Request Credits</button>
         </div>
+
+        <!-- Document Upload Section -->
         <section class="upload-section">
-            <h2>Upload Files</h2>
-            <p>Our system will scan, verify, and ensure your document's authenticity in seconds</p>
-            <div class="upload-box">
-                <img src="../assets/images/Cloud character devours paper files.png" alt="Upload Icon">
-                <p>Drag and Drop your file here</p>
-                <p class="or-text">or</p>
-                <button class="browse-btn" id="browseBtn">Browse</button>
-                <input type="file" id="fileInput" accept=".txt" style="display: none;">
-            </div>
-            <div class="scan-actions" style="display: none;">
-                <button class="upload-btn" id="uploadBtn">Upload Only</button>
-                <button class="scan-btn" id="scanBtn">Scan for Similarities</button>
-            </div>
-            <div id="resultsContainer" class="results-container" style="display: none;">
-                <h3>Scan Results</h3>
-                <div id="similarityGraph" class="similarity-graph"></div>
-            </div>
-        </section>
-
-        <!-- Loading Bar -->
-        <div class="loading-bar-container">
-            <div class="loading-bar">
-                <div class="loading-progress" style="width: 0%;"></div>
-            </div>
-            <p class="loading-text">Scanning in progress... 0%</p>
-        </div>
-
-        <!-- ✅ Request More Credits -->
-        <section class="credit-request">
-            <h3>Request more Credits</h3>
-            <p>Admin will grant your request as soon as possible. Meanwhile, check out our new features.</p>
-            <div class="credit-input">
-                <input type="number" id="creditAmount" placeholder="Enter the number of credits..." min="0" max="10" oninput="validateCreditInput()">
-                <button class="request-btn">Request</button>
-                <img src="../assets/icons/info.png" alt="Info" class="info-icon" onmouseover="showInfoPopup()" onmouseout="hideInfoPopup()">
+            <h2>Upload Document</h2>
+            <p>Upload your document to scan for similarities (1 credit per scan)</p>
+            
+            <div id="drop-area" class="drop-zone">
+                <div class="drop-zone-prompt">
+                    <img src="../assets/images/Cloud character devours paper files.png" alt="Upload" class="upload-icon">
+                    <p>Drag & drop your file here</p>
+                    <span class="or-text">OR</span>
+                    <input type="file" id="document-file" accept=".txt,.doc,.docx,.pdf" class="hidden">
+                    <button id="browse-btn" class="browse-btn">Browse Files</button>
+                </div>
+                <div id="file-preview" class="file-preview hidden">
+                    <div class="file-info">
+                        <img src="../assets/icons/file.png" alt="File" class="file-icon">
+                        <span id="selected-filename"></span>
+                    </div>
+                    <div class="file-actions">
+                        <button id="upload-scan-btn" class="scan-btn">Upload & Scan Similarities</button>
+                        <button id="cancel-upload-btn" class="cancel-btn">Cancel</button>
+                    </div>
+                </div>
             </div>
         </section>
-
-        <!-- ✅ Recently Uploaded Files -->
+        
+        <!-- Recent Documents -->
         <section class="recent-files">
-            <h3>Recently Uploaded</h3>
-            <div class="table-container">  
-                <table border="1" style="width: 100%; border-collapse: collapse; text-align: center;">
+            <h2>Recent Documents</h2>
+            <div class="table-container">
+                <table id="recent-docs-table">
                     <thead>
                         <tr>
-                            <th>File Name</th>
-                            <th>Similarity</th>
-                            <th>View</th>
-                            <th>Download</th>
+                            <th>Document Name</th>
+                            <th>Upload Date</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="fileTableBody">
-                        <tr>
-                            <td colspan="4" style="text-align: center; color: gray;">No files uploaded</td>
-                        </tr>
+                    <tbody id="recent-docs">
+                        <!-- Will be populated by JavaScript -->
                     </tbody>
                 </table>
             </div>
         </section>
-    </main>
+    </div>
 
-    <!-- ✅ Footer (Included) -->
-    <div id="footer-container"></div>
+    <!-- Credit Request Modal -->
+    <div id="credit-modal" class="modal hidden">
+        <div class="modal-content">
+            <button class="close-btn">&times;</button>
+            <div class="modal-header">
+                <h2>Request Credits</h2>
+            </div>
+            <div class="modal-body">
+                <p>About Credits:</p>
+                <ul>
+                    <li>Each document scan costs 1 credit</li>
+                    <li>You receive 20 free credits daily</li>
+                    <li>Admin approval is required for additional credits</li>
+                    <li>Requests are typically processed within 24 hours</li>
+                </ul>
+                <form id="credit-request-form">
+                    <div class="form-group">
+                        <label for="creditAmount">How many credits would you like to request?</label>
+                        <input type="number" id="creditAmount" min="1" max="100" value="10" required>
+                    </div>
+                    <button type="submit">Submit Request</button>
+                </form>
+            </div>
+        </div>
+    </div>
 
-    <script>
-        // Logout function
-        function logout() {
-            localStorage.removeItem("token");
-            localStorage.removeItem("username");
-            alert("✅ Logged out successfully!");
-            window.location.href = "login"; // Remove .html extension
-        }
+    <!-- Loading Overlay (hidden by default) -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+        <p>Analyzing document for similarities...</p>
+    </div>
 
-        // Validate the credit input to ensure it is between 0 and 10
-        function validateCreditInput() {
-            let input = document.getElementById("creditAmount");
-            if (input.value < 0) input.value = 0;
-            if (input.value > 10) input.value = 10;
-        }
+    <!-- Fix the script loading order to ensure dependencies are available -->
+    <script src="../js/utils.js"></script>
+    <script src="../js/api-fallback.js"></script>
+    <script src="../js/scan-handler.js"></script>
+    <script src="../js/credit-request-handler.js"></script>
+    <script src="../js/dashboard.js"></script>
 
-        // Load footer
-        fetch("../components/footer.html")
-            .then(response => response.text())
-            .then(data => {
-                document.getElementById("footer-container").innerHTML = data;
-                // Dynamically load the CSS for the footer
-                const link = document.createElement('link');
-                link.rel = 'stylesheet';
-                link.href = '../components/footer.css';  // Path to the CSS file
-                document.head.appendChild(link);
-            })
-            .catch(error => console.error("Error loading footer:", error));
-    </script>
-
-    <script src="../js/fileTables.js"></script>
-    <script src="../js/dashboard.js" type="module"></script>
-    <script src="../js/upload.js" type="module"></script>
 </body>
 </html>

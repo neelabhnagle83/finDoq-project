@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinDoq API Diagnostics</title>
+    <link rel="stylesheet" href="../css/global.css">
+    <style>
+        body {
+            background-color: #220138;
+            color: white;
+            font-family: 'Space Grotesk', sans-serif;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: rgba(48, 8, 55, 0.4);
+            border-radius: 10px;
+        }
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: rgba(100, 16, 116, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .card h2 {
+            margin-top: 0;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 4px;
+        }
+        button {
+            background: linear-gradient(90deg, #641074, #9d34ad);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background: linear-gradient(90deg, #7a1a8f, #b23fc0);
+        }
+        .results {
+            margin-top: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 5px;
+            padding: 15px;
+            white-space: pre-wrap;
+        }
+        .endpoint-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .endpoint-item {
+            background: rgba(0,0,0,0.2);
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .status-success {
+            color: #2ecc71;
+        }
+        .status-error {
+            color: #e74c3c;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: white;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FinDoq API Diagnostics</h1>
+        
+        <div class="card">
+            <h2>Current API Configuration</h2>
+            <div class="info-display">
+                <p>Base URL: <span id="current-url">Loading...</span></p>
+                <p>Connection Status: <span id="connection-status">Checking...</span></p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>API Endpoint Tester</h2>
+            <button id="test-endpoints">Test All Endpoints</button>
+            <button id="auto-fix">Auto-Fix Configuration</button>
+            
+            <div id="endpoint-results" class="endpoint-list"></div>
+        </div>
+        
+        <div class="card">
+            <h2>Change API Base URL</h2>
+            <div class="form-group">
+                <label for="api-url">New API Base URL:</label>
+                <input type="text" id="api-url" placeholder="http://localhost:3000/api">
+            </div>
+            <button id="save-url">Save and Test</button>
+            <button id="restore-default">Restore Default</button>
+        </div>
+        
+        <div class="card">
+            <h2>Manual API Request</h2>
+            <div class="form-group">
+                <label for="endpoint">Endpoint:</label>
+                <input type="text" id="endpoint" placeholder="/documents/recent">
+            </div>
+            <div class="form-group">
+                <label for="method">Method:</label>
+                <select id="method" style="width:100%; padding:10px; background:rgba(0,0,0,0.2); color:white; border:1px solid rgba(255,255,255,0.2); border-radius:4px;">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="OPTIONS">OPTIONS</option>
+                </select>
+            </div>
+            <button id="send-request">Send Request</button>
+            
+            <div id="request-result" class="results" style="display:none;"></div>
+        </div>
+        
+        <a href="/dashboard" class="back-link">Back to Dashboard</a>
+    </div>
+    
+    <script src="../js/utils.js"></script>
+    <script src="../js/api-config.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentUrlEl = document.getElementById('current-url');
+            const connectionStatusEl = document.getElementById('connection-status');
+            const endpointResultsEl = document.getElementById('endpoint-results');
+            const requestResultEl = document.getElementById('request-result');
+            const apiUrlInput = document.getElementById('api-url');
+            
+            // Display current URL
+            currentUrlEl.textContent = ApiService.getApiBaseUrl();
+            
+            // Set default value in input
+            apiUrlInput.value = ApiService.getApiBaseUrl();
+            
+            // Check connection status
+            fetch(ApiService.getApiBaseUrl(), {
+                method: 'OPTIONS',
+                credentials: 'include'
+            })
+            .then(response => {
+                if (response.ok) {
+                    connectionStatusEl.textContent = 'Connected';
+                    connectionStatusEl.className = 'status-success';
+                } else {
+                    connectionStatusEl.textContent = `Error: ${response.status} ${response.statusText}`;
+                    connectionStatusEl.className = 'status-error';
+                }
+            })
+            .catch(error => {
+                connectionStatusEl.textContent = `Failed: ${error.message}`;
+                connectionStatusEl.className = 'status-error';
+            });
+            
+            // Test endpoints button
+            document.getElementById('test-endpoints').addEventListener('click', async () => {
+                try {
+                    endpointResultsEl.innerHTML = '<p>Testing endpoints...</p>';
+                    const results = await ApiConfig.checkEndpoints();
+                    
+                    // Display results
+                    endpointResultsEl.innerHTML = '';
+                    Object.entries(results.endpoints).forEach(([endpoint, result]) => {
+                        const statusClass = result.available ? 'status-success' : 'status-error';
+                        endpointResultsEl.innerHTML += `
+                            <div class="endpoint-item">
+                                <strong>${endpoint}</strong><br>
+                                Status: <span class="${statusClass}">
+                                    ${result.available ? 'Available' : 'Not Available'} (${result.status})
+                                </span>
+                                ${result.latency ? `<br>Latency: ${result.latency}ms` : ''}
+                            </div>
+                        `;
+                    });
+                } catch (error) {
+                    endpointResultsEl.innerHTML = `<p class="status-error">Error: ${error.message}</p>`;
+                }
+            });
+            
+            // Auto-fix button
+            document.getElementById('auto-fix').addEventListener('click', () => {
+                endpointResultsEl.innerHTML = '<p>Attempting to auto-fix configuration...</p>';
+                ApiConfig.autoFix();
+                
+                // Update displayed URL after auto-fix
+                setTimeout(() => {
+                    currentUrlEl.textContent = ApiService.getApiBaseUrl();
+                    apiUrlInput.value = ApiService.getApiBaseUrl();
+                }, 2000);
+            });
+            
+            // Save URL button
+            document.getElementById('save-url').addEventListener('click', () => {
+                const newUrl = apiUrlInput.value.trim();
+                if (!newUrl) return;
+                
+                ApiConfig.setBaseUrl(newUrl);
+                currentUrlEl.textContent = newUrl;
+                
+                // Test the connection immediately
+                connectionStatusEl.textContent = 'Checking...';
+                fetch(newUrl, {
+                    method: 'OPTIONS'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        connectionStatusEl.textContent = 'Connected';
+                        connectionStatusEl.className = 'status-success';
+                    } else {
+                        connectionStatusEl.textContent = `Error: ${response.status} ${response.statusText}`;
+                        connectionStatusEl.className = 'status-error';
+                    }
+                })
+                .catch(error => {
+                    connectionStatusEl.textContent = `Failed: ${error.message}`;
+                    connectionStatusEl.className = 'status-error';
+                });
+            });
+            
+            // Restore default button
+            document.getElementById('restore-default').addEventListener('click', () => {
+                localStorage.removeItem('apiBaseUrl');
+                const defaultUrl = ApiService.getApiBaseUrl(); // Will get the default URL
+                currentUrlEl.textContent = defaultUrl;
+                apiUrlInput.value = defaultUrl;
+            });
+            
+            // Send request button
+            document.getElementById('send-request').addEventListener('click', async () => {
+                const endpoint = document.getElementById('endpoint').value.trim();
+                const method = document.getElementById('method').value;
+                
+                if (!endpoint) return;
+                
+                requestResultEl.style.display = 'block';
+                requestResultEl.textContent = 'Sending request...';
+                
+                try {
+                    const response = await fetch(ApiService.normalizeUrl(endpoint), {
+                        method,
+                        credentials: 'include',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+                    
+                    let data;
+                    try {
+                        data = await response.json();
+                    } catch (e) {
+                        data = await response.text();
+                    }
+                    
+                    requestResultEl.innerHTML = `
+                        Status: ${response.status} ${response.statusText}<br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } catch (error) {
+                    requestResultEl.textContent = `Error: ${error.message}`;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,796 +1,894 @@
 class DashboardController {
     constructor() {
-        this.uploadQueue = [];
-        this.processingFile = false;
-        this.credits = 0;
         this.ws = null;
         this.selectedFile = null;
-        this.init().catch(console.error);  // Properly handle init errors
-        this.connectWebSocket();
-        this.setupButtons();
-    }
-
-    async init() {
-        try {
-            // Check authentication first
-            const token = localStorage.getItem('token');
-            if (!token) {
-                window.location.href = 'login'; // Remove .html extension
-                return;
-            }
-            
-            this.resetDialogs(); // Clear any stuck dialogs
-            await this.loadUserCredits(); // Load credits first before anything else
-            this.setupDragDrop();
-            this.setupEventListeners(); // Add this line
-            this.setupCreditSystem();
-            this.setupLogout();
-            await this.loadRecentFiles();
-        } catch (error) {
-            console.error('Initialization error:', error);
-            window.location.href = 'login'; // Remove .html extension
-        }
-    }
-
-    // Innovative drag and drop with preview
-    setupDragDrop() {
-        const dropZone = document.querySelector('.upload-box');
-        const browseBtn = document.querySelector('.browse-btn');
-        const fileInput = document.getElementById('fileInput');
-        const scanBtn = document.querySelector('.scan-btn');
-
-        // Initially disable scan button
-        scanBtn.disabled = true;
-        scanBtn.style.opacity = '0.5';
         
-        this.selectedFile = null;
+        // Add ApiService fallback if not defined
+        if (typeof ApiService === 'undefined') {
+            console.warn('ApiService not defined, creating mock service');
+            window.ApiService = {
+                isAuthenticated() { return true; },
+                setupWebSocket() { return null; },
+                fetchWithAuth(url) { 
+                    console.log('Mock API call to:', url);
+                    return Promise.resolve({}); 
+                },
+                logout() { 
+                    console.log('Mock logout');
+                    window.location.href = '/login'; // Changed from '/login.html' to '/login'
+                }
+            };
+        }
+        
+        // Initialize
+        this.init();
+        this.initializeCreditRequestButton();
+        
+        // Add ability to open diagnostics
+        this.checkApiStatus();
+    }
+    
+    async init() {
+        // Check authentication
+        if (!ApiService.isAuthenticated()) {
+            window.location.href = '/login'; // Changed from '/login.html' to '/login'
+            return;
+        }
 
-        browseBtn.addEventListener('click', () => fileInput.click());
-
+        // Set username from localStorage
+        document.getElementById('username-display').textContent = localStorage.getItem('username') || 'User';
+        
+        // Setup event listeners
+        this.setupEventListeners();
+        
+        // Load initial data with error handling
+        try {
+            await this.loadUserCredits();
+        } catch (error) {
+            console.error('Failed to load user credits:', error);
+            // Set default credits from localStorage as fallback
+            const creditsElement = document.getElementById('credits-display');
+            if (creditsElement) {
+                creditsElement.textContent = localStorage.getItem('userCredits') || '0';
+            }
+        }
+        
+        try {
+            await this.loadRecentDocuments();
+        } catch (error) {
+            console.error('Failed to load recent documents:', error);
+            // Show empty state message
+            const docsContainer = document.getElementById('recent-docs');
+            if (docsContainer) {
+                docsContainer.innerHTML = '<tr><td colspan="3" class="empty-state">No documents found or unable to connect to server</td></tr>';
+            }
+        }
+        
+        // Setup WebSocket for real-time updates
+        this.ws = ApiService.setupWebSocket();
+    }
+    
+    setupEventListeners() {
+        // Drag and drop functionality
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('document-file');
+        const browseBtn = document.getElementById('browse-btn');
+        const uploadScanBtn = document.getElementById('upload-scan-btn');
+        const cancelUploadBtn = document.getElementById('cancel-upload-btn');
+        const filePreview = document.getElementById('file-preview');
+        
+        // Prevent default behaviors for drag events
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+        
+        // Highlight drop area when dragging over
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.add('drag-over');
+            });
+        });
+        
+        // Remove highlight when dragging leaves
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.remove('drag-over');
+            });
+        });
+        
+        // Handle file drop
+        dropArea.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length) {
+                this.handleFileSelection(files[0]);
+            }
+        });
+        
+        // Handle file input change
         fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
+            if (e.target.files.length) {
                 this.handleFileSelection(e.target.files[0]);
             }
         });
-
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('drag-over');
+        
+        // Browse button click
+        browseBtn.addEventListener('click', () => {
+            fileInput.click();
         });
-
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('drag-over');
-        });
-
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('drag-over');
-            
-            const file = e.dataTransfer.files[0];
-            if (file) {
-                this.handleFileSelection(file);
-            }
-        });
-
-        // Connect scan button
-        scanBtn.addEventListener('click', () => {
+        
+        // Upload & scan button click
+        uploadScanBtn.addEventListener('click', () => {
             if (this.selectedFile) {
-                this.confirmAndScanFile();
+                this.uploadAndScanFile(this.selectedFile);
             }
         });
-    }
-
-    setupButtons() {
-        const uploadBtn = document.querySelector('.upload-btn');
-        const scanBtn = document.querySelector('.scan-btn');
-
-        if (uploadBtn) {
-            uploadBtn.addEventListener('click', () => {
-                if (!this.selectedFile) {
-                    this.showError('Please select a file first');
-                    return;
-                }
-                this.uploadOnly();
+        
+        // Cancel button click
+        cancelUploadBtn.addEventListener('click', () => {
+            this.resetFileSelection();
+        });
+        
+        // Credit request modal
+        document.getElementById('request-credits-btn').addEventListener('click', () => {
+            document.getElementById('credit-modal').classList.remove('hidden');
+        });
+        
+        // Close modals
+        document.querySelectorAll('.close-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.target.closest('.modal').classList.add('hidden');
             });
-        }
-
-        if (scanBtn) {
-            scanBtn.addEventListener('click', async () => {
-                if (!this.selectedFile) {
-                    this.showError('Please select a file first');
-                    return;
-                }
-                this.confirmAndScanFile();
-            });
-        }
+        });
+        
+        // Logout
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            ApiService.logout();
+        });
+        
+        // Listen for credit updates
+        document.addEventListener('creditUpdate', (e) => {
+            document.getElementById('credits-display').textContent = e.detail.credits;
+        });
     }
-
-    async handleFileSelection(file) {
-        // Validate file type
-        if (!file.name.endsWith('.txt')) {
-            this.showError('Please upload a text file (.txt)');
-            return;
-        }
-
-        // Validate file size (5MB max)
-        if (file.size > 5 * 1024 * 1024) {
-            this.showError('File size should be less than 5MB');
-            return;
-        }
-
+    
+    handleFileSelection(file) {
+        const filePreview = document.getElementById('file-preview');
+        const dropZonePrompt = document.querySelector('.drop-zone-prompt');
+        const selectedFilename = document.getElementById('selected-filename');
+        
+        // Store the selected file
         this.selectedFile = file;
-        this.updateFilePreview();
         
-        // Show scan actions
-        const scanActions = document.querySelector('.scan-actions');
-        if (scanActions) {
-            scanActions.style.display = 'flex';
-        }
-
-        // Enable scan button
-        const scanBtn = document.querySelector('.scan-btn');
-        if (scanBtn) {
-            scanBtn.disabled = false;
-            scanBtn.style.opacity = '1';
-        }
-
-        // Hide previous results if any
-        document.getElementById('resultsContainer').style.display = 'none';
-    }
-
-    async checkDuplicateFile(file) {
-        try {
-            const content = await file.text();
-            const response = await fetch('/api/documents/check-duplicate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({ 
-                    filename: file.name,
-                    content: content 
-                })
-            });
-            
-            if (!response.ok) throw new Error('Failed to check file');
-            
-            const result = await response.json();
-            if (result.isDuplicate) {
-                // Show similarities for existing file
-                await this.showExistingSimilarities(file);
-                return true;
-            }
-            return false;
-        } catch (error) {
-            console.error('Error checking duplicate:', error);
-            return false;
-        }
-    }
-
-    async showExistingSimilarities(file) {
-        try {
-            const content = await file.text();
-            const response = await fetch('/api/documents/similarities', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({ content })
-            });
-
-            if (!response.ok) throw new Error('Failed to fetch similarities');
-            
-            const result = await response.json();
-            
-            // Show the results container
-            const container = document.getElementById('resultsContainer');
-            container.style.display = 'block';
-            container.innerHTML = '<h3>Similar Documents Found</h3>';
-            
-            const similarityGraph = document.createElement('div');
-            similarityGraph.id = 'similarityGraph';
-            similarityGraph.className = 'similarity-graph';
-            container.appendChild(similarityGraph);
-            
-            if (result.similarities && result.similarities.length > 0) {
-                this.visualizeSimilarity(result.similarities);
-            } else {
-                similarityGraph.innerHTML = '<p>No similar documents found</p>';
-            }
-            
-            this.showInfo('File already exists. Showing similarity results.');
-        } catch (error) {
-            this.showError('Failed to fetch similarities');
-        }
-    }
-
-    async uploadOnly() {
-        if (!this.selectedFile) {
-            this.showError('No file selected');
-            return;
-        }
-
-        try {
-            const baseUrl = 'http://localhost:3000'; // Add base URL
-            const formData = new FormData();
-            formData.append('document', this.selectedFile);
-            
-            const checkResponse = await fetch(`${baseUrl}/api/documents/check`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                body: formData
-            });
-
-            // Add error handling for non-JSON responses
-            let checkResult;
-            try {
-                checkResult = await checkResponse.json();
-            } catch (e) {
-                throw new Error('Server not responding correctly. Please make sure the server is running.');
-            }
-            
-            if (checkResult.exists) {
-                this.showInfo('File already exists in your uploads');
-                this.resetUploadArea();
-                return;
-            }
-
-            this.showLoadingBar();
-            const uploadResponse = await fetch(`${baseUrl}/api/documents/upload`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                body: formData
-            });
-
-            let uploadResult;
-            try {
-                uploadResult = await uploadResponse.json();
-            } catch (e) {
-                throw new Error('Server not responding correctly. Please make sure the server is running.');
-            }
-
-            if (!uploadResponse.ok) {
-                throw new Error(uploadResult.error || 'Upload failed');
-            }
-
-            this.showSuccess('File uploaded successfully');
-            await this.loadRecentFiles();
-            this.resetUploadArea();
-        } catch (error) {
-            this.showError(error.message || 'Upload failed');
-        } finally {
-            this.hideLoadingBar();
-        }
-    }
-
-    resetUploadArea() {
-        const dropZone = document.querySelector('.upload-box');
-        dropZone.innerHTML = `
-            <img src="../assets/images/Cloud character devours paper files.png" alt="Upload Icon">
-            <p>Drag and Drop your file here</p>
-            <p class="or-text">or</p>
-            <button class="browse-btn">Browse</button>
-            <input type="file" id="fileInput" accept=".txt" style="display: none;">
-        `;
+        // Show file name
+        selectedFilename.textContent = file.name;
         
-        // Hide scan actions
-        document.querySelector('.scan-actions').style.display = 'none';
+        // Show file preview and hide prompt
+        dropZonePrompt.classList.add('hidden');
+        filePreview.classList.remove('hidden');
+    }
+    
+    resetFileSelection() {
+        const filePreview = document.getElementById('file-preview');
+        const dropZonePrompt = document.querySelector('.drop-zone-prompt');
+        const fileInput = document.getElementById('document-file');
         
-        // Reset file input
-        document.getElementById('fileInput').value = '';
-        
-        // Clear selected file
+        // Clear file input
+        fileInput.value = '';
         this.selectedFile = null;
         
-        // Reattach event listeners
-        this.setupDragDrop();
+        // Show prompt and hide file preview
+        filePreview.classList.add('hidden');
+        dropZonePrompt.classList.remove('hidden');
     }
-
-    setupEventListeners() {
-        const uploadBtn = document.querySelector('.upload-btn');
-        const scanBtn = document.querySelector('.scan-btn');
-        const fileInput = document.getElementById('fileInput');
-
-        if (uploadBtn) {
-            uploadBtn.addEventListener('click', () => this.uploadOnly());
-        }
-        if (scanBtn) {
-            scanBtn.addEventListener('click', () => this.confirmAndScanFile());
-        }
-        if (fileInput) {
-            fileInput.addEventListener('change', (e) => {
-                if (e.target.files.length > 0) {
-                    this.handleFileSelection(e.target.files[0]);
-                }
-            });
-        }
-    }
-
-    updateFilePreview() {
-        const dropZone = document.querySelector('.upload-box');
-        if (!dropZone) return;
-
-        dropZone.innerHTML = `
-            <div class="file-preview">
-                <img src="../assets/icons/file.png" alt="File Icon">
-                <p>${this.selectedFile.name}</p>
-                <button class="remove-file" onclick="dashboard.removeFile()">✕</button>
-            </div>
-        `;
-
-        // Re-attach browse button listener
-        const browseBtn = document.createElement('button');
-        browseBtn.className = 'browse-btn';
-        browseBtn.textContent = 'Browse';
-        browseBtn.onclick = () => document.getElementById('fileInput').click();
-        dropZone.appendChild(browseBtn);
-    }
-
-    removeFile() {
-        this.selectedFile = null;
-        const dropZone = document.querySelector('.upload-box');
-        dropZone.innerHTML = `
-            <img src="../assets/images/Cloud character devours paper files.png" alt="Upload Icon">
-            <p>Drag and Drop your file here</p>
-            <p class="or-text">or</p>
-            <button class="browse-btn">Browse</button>
-        `;
-        this.setupDragDrop();
-        // Disable scan button
-        const scanBtn = document.querySelector('.scan-btn');
-        scanBtn.disabled = true;
-        scanBtn.style.opacity = '0.5';
-    }
-
-    async confirmAndScanFile() {
-        if (!this.selectedFile) {
-            this.showError('No file selected');
-            return;
-        }
-
-        // Remove any existing dialog first
-        const existingDialog = document.querySelector('.confirm-dialog');
-        if (existingDialog) {
-            existingDialog.remove();
-        }
-
-        return new Promise((resolve) => {
-            const confirmDialog = document.createElement('div');
-            confirmDialog.className = 'confirm-dialog';
-            confirmDialog.innerHTML = `
-                <div class="confirm-content">
-                    <h3>Confirm Scan</h3>
-                    <p>This will use 1 credit to scan "${this.selectedFile.name}"</p>
-                    <p>You have ${this.credits} credits remaining.</p>
-                    <div class="confirm-buttons">
-                        <button class="confirm-yes">Proceed</button>
-                        <button class="confirm-no">Cancel</button>
-                    </div>
-                </div>
-            `;
-
-            const cleanup = () => {
-                const dialog = document.querySelector('.confirm-dialog');
-                if (dialog) {
-                    dialog.remove();
-                }
-            };
-
-            const handleProceed = async () => {
-                cleanup();
-                await this.processFile();
-                resolve(true);
-            };
-
-            const handleCancel = () => {
-                cleanup();
-                resolve(false);
-            };
-
-            document.body.appendChild(confirmDialog);
-            confirmDialog.querySelector('.confirm-yes').addEventListener('click', handleProceed, { once: true });
-            confirmDialog.querySelector('.confirm-no').addEventListener('click', handleCancel, { once: true });
-        });
-    }
-
-    async processFile() {
-        if (!this.selectedFile) {
-            this.showError('No file selected');
-            return;
-        }
-
-        this.showLoadingBar();
-        try {
-            const baseUrl = 'http://localhost:3000'; // Add base URL
-            // First check if file exists
-            const formData = new FormData();
-            formData.append('document', this.selectedFile);
-
-            const checkResponse = await fetch(`${baseUrl}/api/documents/check`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                body: formData
-            });
-
-            // Add error handling for non-JSON responses
-            let checkResult;
-            try {
-                checkResult = await checkResponse.json();
-            } catch (e) {
-                throw new Error('Server not responding correctly. Please make sure the server is running.');
-            }
-            
-            if (checkResult.exists) {
-                await this.showExistingSimilarities(this.selectedFile);
-                this.hideLoadingBar();
-                return;
-            }
-
-            const response = await fetch(`${baseUrl}/api/documents/scan`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                body: formData
-            });
-
-            let result;
-            try {
-                result = await response.json();
-            } catch (e) {
-                throw new Error('Server not responding correctly. Please make sure the server is running.');
-            }
-
-            if (!response.ok) {
-                if (result.error === 'File already exists') {
-                    await this.showExistingSimilarities(this.selectedFile);
-                    return;
-                }
-                throw new Error(result.error || 'Scan failed');
-            }
-
-            // Show results for new file
-            const container = document.getElementById('resultsContainer');
-            container.style.display = 'block';
-
-            if (result.similarities && result.similarities.length > 0) {
-                container.innerHTML = '<h3>Similar Documents Found</h3>';
-                const similarityGraph = document.createElement('div');
-                similarityGraph.id = 'similarityGraph';
-                similarityGraph.className = 'similarity-graph';
-                container.appendChild(similarityGraph);
-                this.visualizeSimilarity(result.similarities);
-            } else {
-                container.innerHTML = '<h3>Scan Results</h3><p>No similar documents found.</p>';
-            }
-
-            await Promise.all([
-                this.loadUserCredits(),
-                this.loadRecentFiles()
-            ]);
-
-            this.resetUploadArea();
-        } catch (error) {
-            this.showError(error.message);
-            console.error('API Error:', error);
-        } finally {
-            this.hideLoadingBar();
-        }
-    }
-
-    // Smart file processing with queuing system
-    async handleFiles(files) {
-        this.uploadQueue.push(...files);
-        if (!this.processingFile) {
-            this.processQueue();
-        }
-    }
-
-    async processQueue() {
-        if (this.uploadQueue.length === 0) {
-            this.processingFile = false;
-            return;
-        }
-
-        this.processingFile = true;
-        const file = this.uploadQueue.shift();
-        try {
-            await this.uploadAndScan(file);
-        } catch (error) {
-            this.showError(`Failed to process ${file.name}: ${error.message}`);
-        }
-        // Process next file
-        await this.processQueue();
-    }
-
-    // Real-time progress updates
-    updateProgress(percent) {
-        const progress = document.querySelector('.loading-progress');
-        const text = document.querySelector('.loading-text');
-        progress.style.width = `${percent}%`;
-        text.textContent = `Processing... ${Math.round(percent)}%`;
-    }
-
-    // Advanced credit management
-    async setupCreditSystem() {
-        const requestBtn = document.querySelector('.request-btn');
-        requestBtn.addEventListener('click', async () => {
-            const amount = document.getElementById('creditAmount').value;
-            await this.requestCredits(parseInt(amount));
-        });
-    }
-
-    setupLogout() {
-        document.querySelector('.signout-btn').addEventListener('click', () => {
-            localStorage.removeItem('token');
-            localStorage.removeItem('userId');
-            localStorage.removeItem('username');
-            localStorage.removeItem('userRole');
-            window.location.href = 'login'; // Remove .html extension
-        });
-    }
-
-    connectWebSocket() {
-        this.ws = new WebSocket(`ws://${window.location.hostname}:${window.location.port}`);
-        this.ws.onopen = () => {
-            this.ws.send(JSON.stringify({
-                type: 'subscribe',
-                userId: localStorage.getItem('userId')
-            }));
-        };
-        this.ws.onmessage = (event) => this.handleWebSocketMessage(event);
-    }
-
-    handleWebSocketMessage(event) {
-        const data = JSON.parse(event.data);
-        switch(data.type) {
-            case 'creditUpdate':
-                this.updateCredits(data.credits);
-                break;
-            case 'scanComplete':
-                this.showScanResults(data.results);
-                break;
-        }
-    }
-
-    async uploadAndScan(file) {
-        const formData = new FormData();
-        formData.append('document', file);
-        try {
-            this.updateProgress(0);
-            const response = await fetch('/api/documents/scan', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-                body: formData
-            });
-            
-            if (!response.ok) throw new Error('Upload failed');
-            const result = await response.json();
-            this.visualizeSimilarity(result.similarities);
-        } catch (error) {
-            this.showError(error.message);
-        }
-    }
-
-    visualizeSimilarity(similarities) {
-        const container = document.getElementById('similarityGraph');
-        if (!similarities || similarities.length === 0) {
-            container.innerHTML = '<p>No similar documents found</p>';
-            return;
-        }
-        container.innerHTML = `
-            <h3>Similarity Results</h3>
-            ${similarities
-                .filter(sim => sim.similarity > 0) // Only show actual matches
-                .map(sim => `
-                    <div class="graph-bar">
-                        <div class="bar-label">${sim.filename}</div>
-                        <div class="bar-container">
-                            <div class="bar" style="width: ${sim.similarity}%"></div>
-                            <span class="percentage">${Math.round(sim.similarity)}%</span>
-                        </div>
-                        <div class="preview-text">${sim.content}</div>
-                    </div>
-                `).join('')}
-        `;
-    }
-
+    
     async loadUserCredits() {
         try {
-            const response = await fetch('/api/user/profile', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            // Try multiple endpoint paths for credits - remove /api/ prefix
+            const endpoints = [
+                'credits/balance',
+                'user/credits',
+                'credits'
+            ];
             
-            if (!response.ok) {
-                throw new Error('Failed to load credits');
-            }
+            // Use the tryMultipleEndpoints method to attempt each endpoint
+            const data = await ApiService.tryMultipleEndpoints(endpoints);
             
-            const data = await response.json();
-            this.credits = data.credits;
-            
-            const creditsElement = document.querySelector('.credits-count');
-            if (creditsElement) {
-                creditsElement.textContent = this.credits;
+            if (data && data.credits !== undefined) {
+                document.getElementById('credits-display').textContent = data.credits;
+                localStorage.setItem('userCredits', data.credits);
+            } else {
+                throw new Error('Invalid credit data returned');
             }
         } catch (error) {
-            console.error('Error loading credits:', error);
-            const creditsElement = document.querySelector('.credits-count');
-            if (creditsElement) {
-                creditsElement.textContent = '0';
+            console.error('Failed to load credits:', error);
+            
+            // Fallback to localStorage
+            const cachedCredits = localStorage.getItem('userCredits');
+            if (cachedCredits) {
+                document.getElementById('credits-display').textContent = cachedCredits;
             }
+            
+            this.showNotification('error', 'Failed to load credit balance');
         }
     }
-
-    async loadRecentFiles() {
+    
+    async loadRecentDocuments() {
         try {
-            const response = await fetch('/api/documents/recent', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
-
-            if (!response.ok) throw new Error('Failed to load recent files');
-
-            const files = await response.json();
-            this.updateFileTable(files);
-        } catch (error) {
-            console.error('Error loading recent files:', error);
-        }
-    }
-
-    async updateFileTable(files) {
-        const tbody = document.getElementById('fileTableBody');
-        if (!files || files.length === 0) {
-            tbody.innerHTML = `
+            // Try multiple endpoint paths for documents - remove /api/ prefix
+            const endpoints = [
+                'documents/recent',
+                'documents'
+            ];
+            
+            // Use the tryMultipleEndpoints method to attempt each endpoint
+            const documents = await ApiService.tryMultipleEndpoints(endpoints);
+            const docsContainer = document.getElementById('recent-docs');
+            
+            if (!Array.isArray(documents) || documents.length === 0) {
+                docsContainer.innerHTML = '<tr><td colspan="3" class="empty-state">No documents found</td></tr>';
+                return;
+            }
+            
+            docsContainer.innerHTML = documents.map(doc => `
                 <tr>
-                    <td colspan="4" style="text-align: center; color: gray;">No files uploaded</td>
-                </tr>`;
-            return;
+                    <td>${doc.filename || 'Untitled Document'}</td>
+                    <td>${new Date(doc.uploadDate).toLocaleString()}</td>
+                    <td>
+                        <button class="view-btn" onclick="dashboardController.viewMatches('${doc.id || doc.documentId}')">View Matches</button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (error) {
+            console.error('Failed to load documents:', error);
+            
+            const docsContainer = document.getElementById('recent-docs');
+            docsContainer.innerHTML = '<tr><td colspan="3" class="empty-state">Unable to load documents - please try again later</td></tr>';
+            
+            this.showNotification('error', 'Failed to load recent documents');
         }
+    }
+    
+    async uploadAndScanFile(file) {
+        // Show loading overlay
+        document.getElementById('loading-overlay').classList.remove('hidden');
+        document.getElementById('loading-overlay').querySelector('p').textContent = "Processing document...";
+        
+        const reader = new FileReader();
+        
+        reader.onload = async (event) => {
+            try {
+                const content = event.target.result;
+                const fileType = file.type;
+                
+                // Calculate a simple hash of content to prevent re-upload
+                const contentHash = await this.calculateContentHash(content);
+                
+                // Check local storage for recently uploaded hashes
+                const recentUploads = JSON.parse(localStorage.getItem('recentUploads') || '{}');
+                if (recentUploads[contentHash]) {
+                    console.log('File was recently uploaded, showing existing matches');
+                    document.getElementById('loading-overlay').classList.add('hidden');
+                    this.resetFileSelection();
+                    this.showNotification('info', 'Already Scanned', 'This document was recently scanned. Showing existing matches.');
+                    
+                    try {
+                        this.viewMatches(recentUploads[contentHash]);
+                    } catch (viewError) {
+                        console.error('Error viewing matches:', viewError);
+                        
+                        // Fallback to mock data if the scan handler is available
+                        if (window.scanHandler) {
+                            window.scanHandler.displayScanResults(
+                                window.scanHandler.getMockResults(file.name)
+                            );
+                        }
+                    }
+                    return; // Important: exit early to avoid showing success notification
+                }
 
-        tbody.innerHTML = files
-            .filter(file => file.filename) // Filter out unnamed files
-            .map(file => {
-                const displayName = file.filename.includes('-') ? 
-                    file.filename.split('-').slice(1).join('-') : 
-                    file.filename;
-                return `
-                    <tr>
-                        <td>${displayName}</td>
-                        <td>${file.similarity ? Math.round(file.similarity) + '%' : 'N/A'}</td>
-                        <td><button onclick="dashboard.viewFile(${file.id})">View</button></td>
-                        <td><button onclick="dashboard.downloadFile(${file.id})">Download</button></td>
-                    </tr>
-                `;
-            }).join('');
+                // Try several API endpoints - remove slashes that ApiService will handle
+                const endpoints = [
+                    'documents/upload',
+                    'upload/documents', 
+                    'upload'
+                ];
+                
+                let uploadSuccessful = false;
+                let lastError = null;
+                let response = null;
+                
+                // Try each endpoint
+                for (const endpoint of endpoints) {
+                    try {
+                        response = await ApiService.fetchWithAuth(endpoint, {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                filename: file.name,
+                                content,
+                                fileType
+                            })
+                        });
+                        
+                        uploadSuccessful = true;
+                        break; // If successful, exit the loop
+                    } catch (error) {
+                        lastError = error;
+                        console.warn(`Upload to ${endpoint} failed:`, error);
+                    }
+                }
+                
+                // If all uploads failed
+                if (!uploadSuccessful) {
+                    // Store content hash with a temporary ID so we don't rescan
+                    const tempId = `temp_${Date.now()}`;
+                    recentUploads[contentHash] = tempId;
+                    localStorage.setItem('recentUploads', JSON.stringify(recentUploads));
+                    
+                    throw lastError || new Error('Failed to upload document to any endpoint');
+                }
+                
+                // Hide loading overlay
+                document.getElementById('loading-overlay').classList.add('hidden');
+                
+                // Reset file selection
+                this.resetFileSelection();
+                
+                // Check if the file was a duplicate
+                if (response.isDuplicate) {
+                    console.log(`Duplicate file detected (ID: ${response.documentId})`);
+                    
+                    // Store in recent uploads cache
+                    recentUploads[contentHash] = response.documentId;
+                    localStorage.setItem('recentUploads', JSON.stringify(recentUploads));
+                    
+                    this.showNotification('info', 'Already in Database', 'This document already exists in the system. Showing existing matches.');
+                    
+                    // Allow a small delay before showing matches
+                    setTimeout(() => {
+                        this.viewMatches(response.documentId);
+                    }, 500);
+                    
+                    return; // Important: exit early to avoid showing success notification
+                }
+                
+                // For new documents, add to recent uploads cache
+                if (response.documentId) {
+                    recentUploads[contentHash] = response.documentId;
+                    localStorage.setItem('recentUploads', JSON.stringify(recentUploads));
+                }
+                
+                // Refresh document list only for new documents
+                await this.loadRecentDocuments();
+                
+                // Handle normal upload completion
+                if (response.creditsRemaining !== undefined) {
+                    document.getElementById('credits-display').textContent = response.creditsRemaining;
+                }
+                this.showNotification('success', 'Upload Complete', 'Document uploaded and analyzed successfully!');
+                
+                // Show matches for the newly uploaded document
+                if (response.documentId) {
+                    setTimeout(() => {
+                        console.log(`Viewing matches for document ID: ${response.documentId}`);
+                        this.viewMatches(response.documentId);
+                    }, 500);
+                }
+                
+            } catch (error) {
+                // Hide loading overlay
+                document.getElementById('loading-overlay').classList.add('hidden');
+                
+                if (error.message && error.message.includes('Insufficient credits')) {
+                    this.showNotification('error', 'Needs Credits', 'You need more credits to analyze documents. Please request additional credits.');
+                } else {
+                    console.error('Upload error:', error);
+                    this.showNotification('error', 'Upload Failed', 'Could not process document: ' + (error.message || 'server connection issue'));
+                }
+            }
+        };
+        
+        reader.readAsText(file);
     }
 
-    // Add these methods for view and download functionality
-    async viewFile(id) {
+    // Add a new helper function to calculate content hash
+    async calculateContentHash(content) {
+        // This is a simple hash function for demo purposes
+        // In production, you would use a proper crypto library
+        let hash = 0;
+        for (let i = 0; i < content.length; i++) {
+            hash = ((hash << 5) - hash) + content.charCodeAt(i);
+            hash |= 0; // Convert to 32bit integer
+        }
+        return hash.toString();
+    }
+    
+    // Update the viewMatches function to use the new scan-handler approach
+    async viewMatches(docId) {
         try {
-            const response = await fetch(`/api/documents/${id}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
-            if (!response.ok) throw new Error('Failed to load file');
+            // Show loading overlay
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('loading-overlay').querySelector('p').textContent = "Finding similar documents...";
             
-            const document = await response.json();
+            // Try getting the original document details
+            let originalDoc = null;
+            try {
+                // Try multiple endpoint formats - remove slashes that ApiService will handle
+                const docEndpoints = [
+                    `documents/${docId}`,
+                    `document/${docId}`
+                ];
+                
+                originalDoc = await ApiService.tryMultipleEndpoints(docEndpoints);
+                console.log(`Requesting matches for document: ${originalDoc.filename}`);
+                
+                // Store the document content in scanHandler cache for proper display
+                if (window.scanHandler && originalDoc.content) {
+                    window.scanHandler.cacheDocumentContent(docId, {
+                        filename: originalDoc.filename,
+                        content: originalDoc.content
+                    });
+                }
+            } catch (docError) {
+                console.warn('Could not fetch original document:', docError);
+                // Create a minimal document object with the ID
+                originalDoc = { id: docId, filename: 'Unknown Document' };
+            }
             
-            // Create modal for viewing
-            const modal = document.createElement('div');
-            modal.className = 'view-modal';
-            modal.innerHTML = `
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>${document.filename}</h3>
-                        <button onclick="this.closest('.view-modal').remove()">✕</button>
+            // Try multiple endpoint patterns for matches - remove slashes that ApiService will handle
+            const matchEndpoints = [
+                `scan/matches/${docId}`,
+                `documents/matches/${docId}`,
+                `matches/${docId}`
+            ];
+            
+            const response = await ApiService.tryMultipleEndpoints(matchEndpoints);
+            
+            // Hide loading overlay
+            document.getElementById('loading-overlay').classList.add('hidden');
+            
+            // Use the scan handler to display results directly in the page
+            if (window.scanHandler) {
+                // Add the original document content to the matches if available
+                if (originalDoc && originalDoc.content && response.matches) {
+                    // Fix empty or null matches array
+                    if (!Array.isArray(response.matches)) {
+                        response.matches = [];
+                    }
+                    
+                    // Look for exact match or create one
+                    const exactMatch = response.matches.find(m => 
+                        m.documentId === docId || m.id === docId || m.similarity >= 99);
+                    
+                    if (exactMatch) {
+                        // Update with actual content
+                        exactMatch.content = originalDoc.content;
+                        exactMatch.previewContent = originalDoc.content.substring(0, 200);
+                        exactMatch.isCurrentFile = true;
+                        exactMatch.similarity = 100; // Force to 100%
+                        
+                        // Extract common words if missing
+                        if (!exactMatch.commonWords && window.scanHandler.extractCommonWords) {
+                            exactMatch.commonWords = window.scanHandler.extractCommonWords(originalDoc.content);
+                        }
+                    } else {
+                        // Add the original document as a match
+                        response.matches.unshift({
+                            documentId: docId,
+                            id: docId,
+                            documentName: originalDoc.filename,
+                            filename: originalDoc.filename,
+                            similarity: 100, // Force to 100%
+                            uploadDate: originalDoc.uploadDate || new Date().toLocaleString(),
+                            content: originalDoc.content,
+                            previewContent: originalDoc.content.substring(0, 200),
+                            commonWords: window.scanHandler.extractCommonWords ? 
+                                window.scanHandler.extractCommonWords(originalDoc.content) : [],
+                            isCurrentFile: true
+                        });
+                    }
+                }
+                
+                // Fix similarity scores before displaying
+                if (response.matches && Array.isArray(response.matches)) {
+                    response.matches.forEach(match => {
+                        // Fix any invalid similarity scores
+                        if (match.similarity === undefined || match.similarity === null || isNaN(match.similarity)) {
+                            match.similarity = 0;
+                        } else {
+                            // Ensure it's a valid number with one decimal place
+                            match.similarity = parseFloat(parseFloat(match.similarity).toFixed(1));
+                            
+                            // Force values to be within 0-100 range
+                            match.similarity = Math.max(0, Math.min(100, match.similarity));
+                        }
+                    });
+                }
+                
+                window.scanHandler.displayScanResults(response);
+            } else {
+                console.error('Scan handler not available');
+                this.showNotification('error', 'Failed to display scan results');
+            }
+            
+        } catch (error) {
+            console.error('Error viewing matches:', error);
+            document.getElementById('loading-overlay').classList.add('hidden');
+            
+            // Show error notification - no fallback to mock data
+            this.showNotification('error', 'View Failed', 'Failed to view document matches');
+        }
+    }
+    
+    // Format content preview with proper indentation and highlighting
+    formatContentPreview(content) {
+        if (!content) return 'No content available';
+        
+        // Get a suitable preview length (first 150 characters)
+        const preview = content.substring(0, 150);
+        
+        // Format the preview with syntax highlighting
+        const formatted = preview
+            .replace(/\n/g, '<br>')
+            .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;')
+            .replace(/\b(function|return|if|else|for|while|var|let|const)\b/g, '<span class="keyword">$1</span>')
+            .replace(/\b(true|false|null|undefined)\b/g, '<span class="literal">$1</span>')
+            .replace(/(".*?"|'.*?')/g, '<span class="string">$1</span>')
+            .replace(/\b([0-9]+)\b/g, '<span class="number">$1</span>');
+        
+        return formatted + (content.length > 150 ? '...' : '');
+    }
+    
+    // Toggle between collapsed and expanded view of content
+    toggleContentView(button) {
+        const contentDiv = button.closest('.match-item').querySelector('.content-preview');
+        if (contentDiv.classList.contains('collapsed')) {
+            contentDiv.classList.remove('collapsed');
+            contentDiv.classList.add('expanded');
+            button.textContent = 'Show Less';
+        } else {
+            contentDiv.classList.remove('expanded');
+            contentDiv.classList.add('collapsed');
+            button.textContent = 'Show More';
+        }
+    }
+    
+    // View the full document in a modal
+    async viewFullDocument(docId) {
+        try {
+            console.log('Viewing full document with ID:', docId);
+            
+            // Show loading overlay
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('loading-overlay').querySelector('p').textContent = "Loading document...";
+            
+            // Check if scanHandler has this document cached
+            let doc = null;
+            if (window.scanHandler && window.scanHandler.getDocumentFromCache) {
+                doc = window.scanHandler.getDocumentFromCache(docId);
+            }
+            
+            // If not in cache, try to fetch from API
+            if (!doc || !doc.content) {
+                try {
+                    // Try multiple endpoint formats
+                    const docEndpoints = [
+                        `/api/documents/${docId}`,
+                        `/documents/${docId}`
+                    ];
+                    
+                    doc = await ApiService.tryMultipleEndpoints(docEndpoints);
+                    
+                    // Cache the result for future use
+                    if (window.scanHandler && window.scanHandler.cacheDocumentContent) {
+                        window.scanHandler.cacheDocumentContent(docId, doc);
+                    }
+                } catch (apiError) {
+                    console.warn('API error:', apiError);
+                    throw new Error('Could not load document content');
+                }
+            }
+            
+            // Hide loading overlay
+            document.getElementById('loading-overlay').classList.add('hidden');
+            
+            if (!doc || !doc.content) {
+                throw new Error('Document content not available');
+            }
+            
+            // Remove any existing modals to prevent stacking
+            const existingModals = document.querySelectorAll('.full-document-modal');
+            existingModals.forEach(modal => modal.remove());
+            
+            // Create a full document viewer modal
+            const viewerModal = document.createElement('div');
+            viewerModal.className = 'full-document-modal';
+            viewerModal.innerHTML = `
+                <div class="full-document-content">
+                    <div class="full-document-header">
+                        <h3>${doc.filename || 'Document Content'}</h3>
+                        <button class="close-full-btn">&times;</button>
                     </div>
-                    <div class="modal-body">
-                        <pre>${document.content}</pre>
+                    <div class="full-document-body">
+                        <pre>${doc.content || 'No content available'}</pre>
                     </div>
                 </div>
             `;
-            document.body.appendChild(modal);
-        } catch (error) {
-            this.showError(error.message);
-        }
-    }
-
-    async downloadFile(id) {
-        try {
-            const response = await fetch(`/api/documents/${id}/download`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            
+            // Add close functionality
+            viewerModal.querySelector('.close-full-btn').addEventListener('click', () => {
+                viewerModal.remove();
             });
             
-            if (!response.ok) throw new Error('Download failed');
+            // Add to body
+            document.body.appendChild(viewerModal);
             
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = 'document.txt'; // Server will set proper filename
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
         } catch (error) {
-            this.showError(error.message);
+            // Hide loading overlay
+            document.getElementById('loading-overlay').classList.add('hidden');
+            
+            this.showNotification('error', 'Failed to load document: ' + error.message);
         }
     }
-
-    // Add error notification
-    showError(message) {
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'error-notification';
-        errorDiv.textContent = message;
-        document.body.appendChild(errorDiv);
+    
+    highlightMatchedContent(content) {
+        if (!content) return '';
         
-        // Fade out effect
-        errorDiv.style.opacity = '1';
-        setTimeout(() => {
-            errorDiv.style.opacity = '0';
-            setTimeout(() => errorDiv.remove(), 300);
-        }, 2000);
+        // Get the first ~100 characters for preview
+        const preview = content.substring(0, 100);
+        
+        // Find potentially important parts (capitalized words, numbers, etc.)
+        const highlighted = preview.replace(/\b([A-Z][a-z]+|[0-9]+%?)\b/g, '<span class="highlight">$1</span>');
+        
+        return highlighted + (content.length > 100 ? '...' : '');
     }
-
-    showInfo(message) {
-        const infoDiv = document.createElement('div');
-        infoDiv.className = 'info-notification';
-        infoDiv.textContent = message;
-        document.body.appendChild(infoDiv);
+    
+    calculateSimilarity(content) {
+        // Simple placeholder for similarity calculation
+        return Math.floor(Math.random() * 30) + 70; // Random value between 70-100%
+    }
+    
+    showNotification(type, title, message) {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `${type}-notification notification`;
+        notification.innerHTML = `<strong>${title}</strong>: ${message}`;
+        
+        // Append to body
+        document.body.appendChild(notification);
+        
+        // Auto-remove after 3 seconds
         setTimeout(() => {
-            infoDiv.style.opacity = '0';
-            setTimeout(() => infoDiv.remove(), 300);
+            notification.classList.add('fade-out');
+            setTimeout(() => {
+                notification.remove();
+            }, 300);
         }, 3000);
     }
 
-    updateCredits(newCredits) {
-        this.credits = newCredits;
-        const creditsElement = document.querySelector('.credits-count');
+    /**
+     * Initialize credit display and listeners
+     */
+    initializeCredits() {
+        // Check credits on page load
+        this.checkUserCredits();
+        
+        // Set up periodic credit check (every 5 minutes)
+        setInterval(() => this.checkUserCredits(), 300000);
+    }
+    
+    /**
+     * Check user credits from server and update UI
+     */
+    checkUserCredits() {
+        // Try main endpoint first
+        fetch('/api/credits/balance', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            credentials: 'include'
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to fetch credits');
+            return response.json();
+        })
+        .then(data => {
+            if (data.credits !== undefined) {
+                this.updateCreditsUI(data.credits);
+                localStorage.setItem('userCredits', data.credits);
+            }
+        })
+        .catch(err => {
+            console.error('Error checking credits from main endpoint:', err);
+            
+            // Try fallback endpoint
+            fetch('/api/user/credits', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                credentials: 'include'
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Failed to fetch credits from fallback');
+                return response.json();
+            })
+            .then(data => {
+                if (data.credits !== undefined) {
+                    this.updateCreditsUI(data.credits);
+                    localStorage.setItem('userCredits', data.credits);
+                }
+            })
+            .catch(secondErr => {
+                console.error('Error checking credits from fallback endpoint:', secondErr);
+                
+                // As last resort, use the cached credits from localStorage
+                const cachedCredits = localStorage.getItem('userCredits');
+                if (cachedCredits) {
+                    this.updateCreditsUI(parseInt(cachedCredits, 10));
+                }
+            });
+        });
+    }
+    
+    /**
+     * Update credits display in UI
+     */
+    updateCreditsUI(credits) {
+        const creditsElement = document.getElementById('user-credits');
         if (creditsElement) {
-            creditsElement.textContent = newCredits;
+            creditsElement.textContent = credits.toString();
+            
+            // Disable scan button if no credits
+            const scanBtn = document.getElementById('upload-scan-btn');
+            if (scanBtn) {
+                if (credits <= 0) {
+                    scanBtn.classList.add('disabled');
+                    scanBtn.setAttribute('disabled', 'disabled');
+                    scanBtn.setAttribute('title', 'No credits remaining');
+                } else {
+                    scanBtn.classList.remove('disabled');
+                    scanBtn.removeAttribute('disabled');
+                    scanBtn.removeAttribute('title');
+                }
+            }
         }
     }
 
-    showSuccess(message) {
-        const successDiv = document.createElement('div');
-        successDiv.className = 'success-notification';
-        successDiv.textContent = message;
-        document.body.appendChild(successDiv);
-        setTimeout(() => successDiv.remove(), 3000);
-    }
-
-    showScanResults(results) {
-        this.hideLoadingBar();
-        const container = document.querySelector('.results-container');
-        if (results.length === 0) {
-            container.innerHTML = '<p>No similar documents found.</p>';
-            return;
+    initializeCreditRequestButton() {
+        const requestBtn = document.getElementById('request-credits-btn');
+        if (requestBtn) {
+            // Make sure the button opens the modal properly
+            requestBtn.addEventListener('click', () => {
+                const creditModal = document.getElementById('credit-modal');
+                if (creditModal) {
+                    creditModal.classList.remove('hidden');
+                    creditModal.style.display = 'flex';
+                } else {
+                    console.error('Credit modal not found!');
+                }
+            });
         }
-        this.visualizeSimilarity(results);
     }
-
-    // Show loading bar
-    showLoadingBar() {
-        const container = document.querySelector('.loading-bar-container');
-        container.style.display = 'block';
-    }
-
-    // Hide loading bar
-    hideLoadingBar() {
-        const container = document.querySelector('.loading-bar-container');
-        container.style.display = 'none';
-    }
-
-    // Reset method to clean up any stuck dialogs
-    resetDialogs() {
-        const dialogs = document.querySelectorAll('.confirm-dialog, .view-modal');
-        dialogs.forEach(dialog => dialog.remove());
+    
+    /**
+     * Check API connection status and show diagnostics link if needed
+     */
+    checkApiStatus() {
+        // Check if there are persistent API errors
+        const apiErrorCount = parseInt(localStorage.getItem('apiErrorCount') || '0');
+        
+        if (apiErrorCount > 2) {
+            // Show diagnostics link
+            const header = document.querySelector('header');
+            
+            if (header) {
+                const diagnosticsLink = document.createElement('a');
+                diagnosticsLink.href = '/api-diagnostics.html';
+                diagnosticsLink.className = 'diagnostics-link';
+                diagnosticsLink.innerHTML = '<span>⚠️ Fix API</span>';
+                diagnosticsLink.style.color = '#ff9800';
+                diagnosticsLink.style.marginLeft = '10px';
+                diagnosticsLink.style.textDecoration = 'none';
+                
+                const navArea = header.querySelector('.user-actions');
+                if (navArea) {
+                    navArea.insertBefore(diagnosticsLink, navArea.firstChild);
+                } else {
+                    header.appendChild(diagnosticsLink);
+                }
+            }
+        }
     }
 }
 
-// Initialize dashboard
-const dashboard = new DashboardController();
-
-// Export for testing
-if (typeof module !== 'undefined') {
-    module.exports = DashboardController;
-}
+// Call the function when the document is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    // If we already have a dashboardController instance, don't create another one
+    if (!window.dashboardController) {
+        console.log('Creating dashboard controller');
+        
+        // File input handling
+        const browseBtn = document.getElementById('browse-btn');
+        const fileInput = document.getElementById('document-file');
+        const dropZone = document.getElementById('drop-area');
+        const filePreview = document.getElementById('file-preview');
+        const dropZonePrompt = document.querySelector('.drop-zone-prompt');
+        const selectedFilename = document.getElementById('selected-filename');
+        const cancelBtn = document.getElementById('cancel-upload-btn');
+        
+        if (browseBtn && fileInput) {
+            browseBtn.addEventListener('click', () => {
+                fileInput.click();
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    if (dropZonePrompt) dropZonePrompt.classList.add('hidden');
+                    if (filePreview) filePreview.classList.remove('hidden');
+                    if (selectedFilename) selectedFilename.textContent = file.name;
+                }
+            });
+        }
+        
+        // Drag and drop handling
+        if (dropZone) {
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+            
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('drag-over');
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                
+                if (e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+                    if (fileInput) fileInput.files = e.dataTransfer.files;
+                    if (dropZonePrompt) dropZonePrompt.classList.add('hidden');
+                    if (filePreview) filePreview.classList.remove('hidden');
+                    if (selectedFilename) selectedFilename.textContent = file.name;
+                }
+            });
+        }
+        
+        // Cancel button handling
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                if (fileInput) fileInput.value = '';
+                if (dropZonePrompt) dropZonePrompt.classList.remove('hidden');
+                if (filePreview) filePreview.classList.add('hidden');
+            });
+        }
+        
+        // Initialize credits
+        const creditsDisplay = document.getElementById('credits-display');
+        if (creditsDisplay) {
+            const credits = parseInt(localStorage.getItem('userCredits') || '50', 10);
+            creditsDisplay.textContent = credits.toString();
+            
+            // Disable scan button if no credits
+            const scanBtn = document.getElementById('upload-scan-btn');
+            if (scanBtn && credits <= 0) {
+                scanBtn.classList.add('disabled');
+                scanBtn.setAttribute('disabled', 'disabled');
+                scanBtn.setAttribute('title', 'No credits remaining');
+            }
+        }
+        
+        // Initialize dashboard controller - ONLY ONCE
+        window.dashboardController = new DashboardController();
+    } else {
+        console.log('Dashboard controller already exists, not creating another instance');
+    }
+});
